@@ -10,9 +10,9 @@ ROOT_DIR = os.path.dirname(__file__)
 
 def get_version():
     context = {}
-    with open('./metadrive/version.py', 'r') as file:
+    with open("./metadrive/version.py", "r") as file:
         exec(file.read(), context)
-    return context['VERSION']
+    return context["VERSION"]
 
 
 VERSION = get_version()
@@ -26,20 +26,24 @@ def is_win():
     return sys.platform == "win32"
 
 
-assert sys.version_info.major == 3 and sys.version_info.minor >= 6 and sys.version_info.minor < 12, \
-    "python version >= 3.6, <3.12 is required"
+assert (
+    sys.version_info.major == 3
+    and sys.version_info.minor >= 6
+    and sys.version_info.minor < 12
+), "python version >= 3.6, <3.12 is required"
 
 this_directory = path.abspath(path.dirname(__file__))
-with open(path.join(this_directory, 'README.md'), encoding='utf-8') as f:
+with open(path.join(this_directory, "README.md"), encoding="utf-8") as f:
     long_description = f.read()
 packages = find_namespace_packages(
-    exclude=("docs", "docs.*", "documentation", "documentation.*", "build.*"))
+    exclude=("docs", "docs.*", "documentation", "documentation.*", "build.*")
+)
 print("We will install the following packages: ", packages)
 
 install_requires = [
     "requests",
     "gymnasium>=0.28",
-    "numpy>=1.21.6",
+    "numpy==1.23.5",
     "matplotlib",
     "pandas",
     "pygame",
@@ -72,17 +76,13 @@ cuda_requirement = [
     "glfw",
 ]
 
-gym_requirement = [
-    "gym>=0.19.0, <=0.26.0"
-]
+gym_requirement = ["gym>=0.19.0, <=0.26.0"]
 
-ros_requirement = [
-    "zmq"
-]
+ros_requirement = ["zmq"]
 
 setup(
     name="metadrive-simulator",
-    python_requires='>=3.6, <3.12',  # do version check with assert
+    python_requires=">=3.6, <3.12",  # do version check with assert
     version=VERSION,
     description="An open-ended driving simulator with infinite scenes",
     url="https://github.com/metadriverse/metadrive",
@@ -98,7 +98,7 @@ setup(
     include_package_data=True,
     license="Apache 2.0",
     long_description=long_description,
-    long_description_content_type='text/markdown',
+    long_description_content_type="text/markdown",
 )
 
 """
