@@ -4,7 +4,7 @@ from metadrive.component.map.pg_map import MapGenerateMethod
 from metadrive.examples.ppo_expert.torch_expert import torch_expert as expert
 from metadrive.utils import generate_gif
 
-from metadrive.engine.logger import get_logger
+from metadrive.engine.logger import CustomFormatter, get_logger
 from IPython.display import Image, clear_output
 import pandas as pd
 from pathlib import Path
@@ -15,9 +15,16 @@ from PIL import Image
 import numpy as np
 import logging
 import time
+import datetime
 
 logger = get_logger()
-SAVE_DIR = Path("eval_data")
+now = datetime.datetime.now()
+file_handler = logging.FileHandler(f"olek/logs/{now.strftime('%Y-%m-%d_%H-%M-%S')}.log")
+formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+file_handler.setFormatter(formatter)
+logger.addHandler(file_handler)
+
+SAVE_DIR = Path("olek/eval_data")
 assert SAVE_DIR.exists(), "Save directory must exist!"
 
 
@@ -196,4 +203,6 @@ class ScenarioRunner:
 if __name__ == "__main__":
 
     # ScenarioRunner(seed=123, decision_repeat=6, dt=0.03).run_scenario()
-    ScenarioRunner(seed=123, decision_repeat=6, dt=0.03).run_scenario()
+    ScenarioRunner(seed=123, decision_repeat=5, dt=0.02).run_scenario(
+        repeat=True, record_gif=True
+    )

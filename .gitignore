@@ -1,4 +1,5 @@
 olek/eval_data
+*.log
 *.csv
 *.pyc
 *.gif
