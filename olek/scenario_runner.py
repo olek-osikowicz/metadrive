@@ -4,9 +4,7 @@ from metadrive.component.map.pg_map import MapGenerateMethod
 from metadrive.examples.ppo_expert.torch_expert import torch_expert as expert
 from metadrive.utils import generate_gif
 
-from metadrive.engine.logger import CustomFormatter, get_logger
-from IPython.display import Image, clear_output
-import pandas as pd
+from metadrive.engine.logger import get_logger
 from pathlib import Path
 
 import json
@@ -163,7 +161,6 @@ class ScenarioRunner:
     def run_scenario(self, record_gif=False, repeat=False):
 
         start_ts = time.perf_counter()
-        # TODO check if was executed before
 
         if self.data_exists() and not repeat:
             logger.info("Data for this scenario exists skipping.")
