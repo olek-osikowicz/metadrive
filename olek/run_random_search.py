@@ -23,7 +23,7 @@ def do_random_search(rep, dr, dt, time_budget=60):
 if __name__ == "__main__":
     random.seed(2137)
 
-    TIME_BUDGET = 10 * 60  # 15 mins
+    TIME_BUDGET = 10 * 60  # 10 mins
 
     dr_range = [5, 10, 15]
     # dr_range = [5, 10, 15, 20]

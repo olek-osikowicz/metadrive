@@ -107,6 +107,7 @@ class ScenarioRunner:
             if info["episode_length"] == max_steps:
                 truncated = True
                 info["max_step"] = True
+                logger.info("Time out reached!")
 
             if record_gif:
                 frames.append(env.render(mode="topdown", window=False))
