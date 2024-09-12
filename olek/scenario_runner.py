@@ -70,9 +70,8 @@ class ScenarioRunner:
         self.decision_repeat = decision_repeat
         self.dt = dt
         save_dir = Path(save_dir)
-        assert save_dir.exists(), "Save dir must exists"
         self.save_path = save_dir / f"dr_{decision_repeat}_dt_{dt}"
-        self.save_path.mkdir(exist_ok=True)
+        self.save_path.mkdir(parents=True, exist_ok=True)
 
     def get_max_steps(self, env: MetaDriveEnv):
         """
