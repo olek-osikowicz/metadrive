@@ -22,9 +22,6 @@ formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(messag
 file_handler.setFormatter(formatter)
 logger.addHandler(file_handler)
 
-SAVE_DIR = Path("olek/eval_data")
-assert SAVE_DIR.exists(), "Save directory must exist!"
-
 
 def serialize_step_info(info) -> dict:
     """Convert numpy floats to native so can be serialized."""
@@ -63,6 +60,7 @@ class ScenarioRunner:
 
     def __init__(
         self,
+        save_dir: str,
         seed: int = 0,
         decision_repeat: int = 5,
         dt: float = 0.02,
@@ -71,8 +69,9 @@ class ScenarioRunner:
         self.seed = seed
         self.decision_repeat = decision_repeat
         self.dt = dt
-
-        self.save_path = SAVE_DIR / f"dr_{decision_repeat}_dt_{dt}"
+        save_dir = Path(save_dir)
+        assert save_dir.exists(), "Save dir must exists"
+        self.save_path = save_dir / f"dr_{decision_repeat}_dt_{dt}"
         self.save_path.mkdir(exist_ok=True)
 
     def get_max_steps(self, env: MetaDriveEnv):
