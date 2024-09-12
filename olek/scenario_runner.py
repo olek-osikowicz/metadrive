@@ -198,6 +198,6 @@ class ScenarioRunner:
 if __name__ == "__main__":
 
     # ScenarioRunner(seed=123, decision_repeat=6, dt=0.03).run_scenario()
-    ScenarioRunner(seed=123, decision_repeat=5, dt=0.02).run_scenario(
+    ScenarioRunner("test", seed=123, decision_repeat=5, dt=0.02).run_scenario(
         repeat=True, record_gif=True
     )
