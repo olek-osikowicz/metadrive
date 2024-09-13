@@ -14,7 +14,7 @@ def do_random_search(rep, dr, dt, time_budget=60):
     while time.time() - start_ts < time_budget:
         env_seed = random.randint(100, 10**10)
         ScenarioRunner(f"{SAVE_DIR}/{rep}", env_seed, dr, dt).run_scenario(
-            record_gif=True
+            record_gif=True, repeat=True
         )
 
     logger.info(f"Random search for: {dr = :3}, {dt = } {rep = } finished!")
