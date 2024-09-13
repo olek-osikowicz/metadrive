@@ -154,7 +154,7 @@ class ScenarioRunner:
         return env
 
     def data_exists(self) -> bool:
-        lst = list(self.save_path.glob(f"{self.seed}*"))
+        lst = list(self.save_path.glob(f"{self.seed}.json"))
         return bool(lst)
 
     def run_scenario(self, record_gif=False, repeat=False):
