@@ -23,6 +23,47 @@ file_handler.setFormatter(formatter)
 logger.addHandler(file_handler)
 
 
+def max_touching_distance(ego, npc):
+    ego_length, ego_width = ego.get_state()["length"], ego.get_state()["width"]
+    npc_length, npc_width = npc.get_state()["length"], npc.get_state()["width"]
+
+    # Pythagorean theorem
+    dist = np.sqrt(
+        (ego_length / 2 + npc_length / 2) ** 2 + (ego_width / 2 + npc_width / 2) ** 2
+    )
+    # add 10% just in case
+    dist = dist * 1.1
+    return dist
+
+
+def get_crashed_vehicles(env) -> set:
+
+    ret = set()
+    ego = env.agent
+    npcs = env.agent_manager.get_objects()
+
+    # iterate over npc vehicles
+    for npc in npcs.values():
+        npc_state = npc.get_state()
+
+        # if npc crashed
+        if npc_state["crash_vehicle"]:
+
+            # calculate distance beetween them
+            distance = np.linalg.norm(ego.position - npc.position)
+
+            # calculate max_touching_distance, (collision threshold)
+            max_dist = max_touching_distance(ego, npc)
+
+            # pprint(f"{distance = }")
+            # pprint(f"{max_touching_distance(ego, npc) = }")
+
+            if npc.id is not ego.id and distance < max_dist:
+                ret.add(npc.id)
+
+    return ret
+
+
 def serialize_step_info(info) -> dict:
     """Convert numpy floats to native so can be serialized."""
     info["action"] = [float(x) for x in info["action"]]
@@ -72,6 +113,7 @@ class ScenarioRunner:
         save_dir = Path(save_dir)
         self.save_path = save_dir / f"dr_{decision_repeat}_dt_{dt}"
         self.save_path.mkdir(parents=True, exist_ok=True)
+        self.crashed_vehicles = set()
 
     def get_max_steps(self, env: MetaDriveEnv):
         """
@@ -111,6 +153,9 @@ class ScenarioRunner:
 
             if record_gif:
                 frames.append(env.render(mode="topdown", window=False))
+
+            if info["crash_vehicle"]:
+                self.crashed_vehicles.update(get_crashed_vehicles(env))
 
             steps_infos.append(serialize_step_info(info))
 
@@ -181,6 +226,7 @@ class ScenarioRunner:
 
         steps_info.insert(0, reset_info)
         scenario_data["steps_infos"] = steps_info
+        scenario_data["n_crashed_vehicles"] = len(self.crashed_vehicles)
         scenario_data["map_data"] = env.current_map.get_meta_data()["block_sequence"]
         scenario_data["max_steps"] = max_step
 
