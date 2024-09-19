@@ -10,4 +10,4 @@ if __name__ == "__main__":
 
     seeds = [path.stem for path in RS_DIR.glob("**/*.json")]
     for seed in tqdm(seeds):
-        ScenarioRunner(VERIFICATION_SAVE_DIR, seed).run_scenario(record_gif=True)
+        ScenarioRunner(VERIFICATION_SAVE_DIR, int(seed)).run_scenario()
