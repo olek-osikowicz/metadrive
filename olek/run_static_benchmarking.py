@@ -3,7 +3,7 @@ import itertools
 
 if __name__ == "__main__":
 
-    SAVE_DIR = "olek/data/benchmarking"
+    SAVE_DIR = "data/benchmarking"
     seed_range = range(0, 100)
     dr_range = [5, 10, 15, 20]
     dt_range = [0.02, 0.03, 0.04]
