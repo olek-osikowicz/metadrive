@@ -202,7 +202,9 @@ class ScenarioRunner:
         lst = list(self.save_path.glob(f"{self.seed}.json"))
         return bool(lst)
 
-    def run_scenario(self, record_gif=False, repeat=False):
+    def run_scenario(
+        self, record_gif=False, repeat=False, dry_run=False, save_map=False
+    ):
 
         start_ts = time.perf_counter()
 
@@ -214,26 +216,33 @@ class ScenarioRunner:
         env = self.create_env()
         _, reset_info = env.reset()
 
+        scenario_data = {}
+        scenario_data["map_data"] = env.current_map.get_meta_data()["block_sequence"]
+        scenario_data["max_steps"] = max_step
+
         initialized_ts = time.perf_counter()
 
-        # running loop
+        # running loop if it's not a dry run
         max_step = self.get_max_steps(env)
-        steps_info = self.state_action_loop(env, max_step, record_gif)
+        steps_info = (
+            self.state_action_loop(env, max_step, record_gif) if not dry_run else []
+        )
         scenario_done_ts = time.perf_counter()
 
-        # save metadata
-        scenario_data = process_timestamps(start_ts, initialized_ts, scenario_done_ts)
+        # save execution metadata
+        scenario_data.update(
+            process_timestamps(start_ts, initialized_ts, scenario_done_ts)
+        )
 
         steps_info.insert(0, reset_info)
         scenario_data["steps_infos"] = steps_info
         scenario_data["n_crashed_vehicles"] = len(self.crashed_vehicles)
-        scenario_data["map_data"] = env.current_map.get_meta_data()["block_sequence"]
-        scenario_data["max_steps"] = max_step
 
         with open(self.save_path / f"{self.seed}.json", "w") as f:
             json.dump(scenario_data, f, indent=4)
 
-        get_map_img(env).save(self.save_path / f"{self.seed}.png")
+        if save_map:
+            get_map_img(env).save(self.save_path / f"{self.seed}.png")
 
         data_saved_ts = time.perf_counter()
         logger.info(f"Saving data took {data_saved_ts-scenario_done_ts:.2f}s")
