@@ -9,5 +9,6 @@ if __name__ == "__main__":
     dt_range = [0.02, 0.03, 0.04]
     for seed, dr, dt in itertools.product(seed_range, dr_range, dt_range):
         ScenarioRunner(SAVE_DIR, seed, dr, dt).run_scenario(
-            dry_run=True, record_gif=True
+            dry_run=True,
+            record_gif=True,
         )
