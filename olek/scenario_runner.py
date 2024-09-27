@@ -97,6 +97,16 @@ def get_map_img(env):
     return img
 
 
+def get_bev_state(env) -> list:
+    def filter_vehicle_state(v_state: dict) -> dict:
+        wanted_keys = ["length", "width", "height", "spawn_road", "destination"]
+        return {key: v_state[key] for key in wanted_keys}
+
+    vehicles = env.agent_manager.get_objects()
+    bvs_states = [filter_vehicle_state(v.get_state()) for v in vehicles.values()]
+    return bvs_states
+
+
 class ScenarioRunner:
 
     def __init__(
@@ -217,13 +227,15 @@ class ScenarioRunner:
         _, reset_info = env.reset()
 
         scenario_data = {}
-        scenario_data["map_data"] = env.current_map.get_meta_data()["block_sequence"]
-        scenario_data["max_steps"] = max_step
+        scenario_data["def.map_seq"] = env.current_map.get_meta_data()["block_sequence"]
+        scenario_data["def.bv_data"] = get_bev_state(env)
+
+        max_step = self.get_max_steps(env)
+        scenario_data["def.max_steps"] = max_step
 
         initialized_ts = time.perf_counter()
 
         # running loop if it's not a dry run
-        max_step = self.get_max_steps(env)
         steps_info = (
             self.state_action_loop(env, max_step, record_gif) if not dry_run else []
         )
