@@ -115,11 +115,13 @@ class ScenarioRunner:
         seed: int = 0,
         decision_repeat: int = 5,
         dt: float = 0.02,
+        traffic_density: float = 0.1,
     ) -> None:
 
         self.seed = seed
         self.decision_repeat = decision_repeat
         self.dt = dt
+        self.traffic_density = traffic_density
         save_dir = Path(save_dir)
         self.save_path = save_dir / f"dr_{decision_repeat}_dt_{dt}"
         self.save_path.mkdir(parents=True, exist_ok=True)
@@ -201,6 +203,7 @@ class ScenarioRunner:
             # use_render=True,
             log_level=logging.INFO,  # logging.DEBUG
             start_seed=self.seed,
+            traffic_density=self.traffic_density,
             map_config=map_config,
             **termination_sceme,
             **fidelity_params,

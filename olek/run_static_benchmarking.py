@@ -7,6 +7,6 @@ if __name__ == "__main__":
     DR_RANGE = [5, 10, 15, 20]
     DT_RANGE = [0.02, 0.03, 0.04]
 
-    SAVE_DIR = "data/benchmarking/nogif_1000"
+    SAVE_DIR = "data/benchmarking/nocars"
     for seed, dr, dt in itertools.product(SEED_RANGE, DR_RANGE, DT_RANGE):
-        ScenarioRunner(SAVE_DIR, seed, dr, dt).run_scenario()
+        ScenarioRunner(SAVE_DIR, seed, dr, dt, traffic_density=0.0).run_scenario()
