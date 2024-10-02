@@ -3,11 +3,10 @@ import itertools
 
 if __name__ == "__main__":
 
-    SAVE_DIR = "data/benchmarking/nogif"
-    seed_range = range(0, 100)
-    dr_range = [5, 10, 15, 20]
-    dt_range = [0.02, 0.03, 0.04]
-    for seed, dr, dt in itertools.product(seed_range, dr_range, dt_range):
-        ScenarioRunner(SAVE_DIR, seed, dr, dt).run_scenario(
-            dry_run=False, record_gif=False
-        )
+    SEED_RANGE = range(0, 1000)
+    DR_RANGE = [5, 10, 15, 20]
+    DT_RANGE = [0.02, 0.03, 0.04]
+
+    SAVE_DIR = "data/benchmarking/nogif_1000"
+    for seed, dr, dt in itertools.product(SEED_RANGE, DR_RANGE, DT_RANGE):
+        ScenarioRunner(SAVE_DIR, seed, dr, dt).run_scenario()
