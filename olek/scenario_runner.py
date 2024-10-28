@@ -112,20 +112,20 @@ class ScenarioRunner:
     def __init__(
         self,
         save_dir: str,
-        seed: int = 0,
+        num_scenarios: int = 1,
         decision_repeat: int = 5,
         dt: float = 0.02,
         traffic_density: float = 0.1,
     ) -> None:
 
-        self.seed = seed
+        self.num_scenarios = num_scenarios
         self.decision_repeat = decision_repeat
         self.dt = dt
         self.traffic_density = traffic_density
         save_dir = Path(save_dir)
         self.save_path = save_dir / f"dr_{decision_repeat}_dt_{dt}"
         self.save_path.mkdir(parents=True, exist_ok=True)
-        self.crashed_vehicles = set()
+        self.env = self.create_env()
 
     def get_max_steps(self, env: MetaDriveEnv):
         """
@@ -175,7 +175,7 @@ class ScenarioRunner:
                 break
 
         if record_gif:
-            generate_gif(frames, gif_name=f"{self.save_path}/{self.seed}.gif")
+            generate_gif(frames, gif_name=f"{self.rep_path}/{seed}.gif")
 
         return steps_infos
 
@@ -201,8 +201,9 @@ class ScenarioRunner:
 
         cfg = dict(
             # use_render=True,
+            num_scenarios=self.num_scenarios,
             log_level=logging.INFO,  # logging.DEBUG
-            start_seed=self.seed,
+            start_seed=0,
             traffic_density=self.traffic_density,
             map_config=map_config,
             **termination_sceme,
@@ -211,36 +212,47 @@ class ScenarioRunner:
         env = MetaDriveEnv(config=cfg)
         return env
 
-    def data_exists(self) -> bool:
-        lst = list(self.save_path.glob(f"{self.seed}.json"))
+    def data_exists(self, seed) -> bool:
+        lst = list(self.save_path.glob(f"{seed}.json"))
         return bool(lst)
 
     def run_scenario(
-        self, record_gif=False, repeat=False, dry_run=False, save_map=False
+        self,
+        seed=0,
+        repetition=0,
+        record_gif=False,
+        repeat=False,
+        dry_run=False,
+        save_map=False,
     ):
 
         start_ts = time.perf_counter()
+        self.crashed_vehicles = set()
+        self.rep_path = self.save_path / str(repetition)
+        self.rep_path.mkdir(parents=True, exist_ok=True)
 
-        if self.data_exists() and not repeat:
+        if self.data_exists(seed) and not repeat:
             logger.info("Data for this scenario exists skipping.")
             return
 
-        # initialize
-        env = self.create_env()
-        _, reset_info = env.reset()
+        _, reset_info = self.env.reset(seed)
 
         scenario_data = {}
-        scenario_data["def.map_seq"] = env.current_map.get_meta_data()["block_sequence"]
-        scenario_data["def.bv_data"] = get_bev_state(env)
+        scenario_data["def.map_seq"] = self.env.current_map.get_meta_data()[
+            "block_sequence"
+        ]
+        scenario_data["def.bv_data"] = get_bev_state(self.env)
 
-        max_step = self.get_max_steps(env)
+        max_step = self.get_max_steps(self.env)
         scenario_data["def.max_steps"] = max_step
 
         initialized_ts = time.perf_counter()
 
         # running loop if it's not a dry run
         steps_info = (
-            self.state_action_loop(env, max_step, record_gif) if not dry_run else []
+            self.state_action_loop(self.env, max_step, record_gif)
+            if not dry_run
+            else []
         )
         scenario_done_ts = time.perf_counter()
 
@@ -253,22 +265,31 @@ class ScenarioRunner:
         scenario_data["steps_infos"] = steps_info
         scenario_data["n_crashed_vehicles"] = len(self.crashed_vehicles)
 
-        with open(self.save_path / f"{self.seed}.json", "w") as f:
+        with open(self.rep_path / f"{seed}.json", "w") as f:
             json.dump(scenario_data, f, indent=4)
 
         if save_map:
-            get_map_img(env).save(self.save_path / f"{self.seed}.png")
+            get_map_img(self.env).save(self.save_path / f"{seed}.png")
 
         data_saved_ts = time.perf_counter()
         logger.info(f"Saving data took {data_saved_ts-scenario_done_ts:.2f}s")
         logger.info(f"Running scenario finished.")
 
-        env.close()
+    def __del__(self):
+        self.env.close()
 
 
 if __name__ == "__main__":
+    import itertools
+    from tqdm import tqdm
 
-    # ScenarioRunner(seed=123, decision_repeat=6, dt=0.03).run_scenario()
-    ScenarioRunner("test", seed=123, decision_repeat=5, dt=0.02).run_scenario(
-        repeat=True, record_gif=True
-    )
+    REPETITIONS = 10
+    NUM_SCENARIOS = 100
+
+    # High fidelity only
+    SAVE_DIR = f"data/many_reset/"
+    sr = ScenarioRunner(SAVE_DIR, NUM_SCENARIOS)
+
+    for seed in range(NUM_SCENARIOS):
+        for rep in range(REPETITIONS):
+            sr.run_scenario(seed, repetition=rep, repeat=True)
