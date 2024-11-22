@@ -239,9 +239,10 @@ class ScenarioRunner:
         initialized_ts = time.perf_counter()
 
         # running loop if it's not a dry run
-        steps_info = (
-            self.state_action_loop(env, max_step, record_gif) if not dry_run else []
-        )
+        steps_info = []
+        if not dry_run:
+            steps_info = self.state_action_loop(env, max_step, record_gif)
+
         scenario_done_ts = time.perf_counter()
 
         # save execution metadata
