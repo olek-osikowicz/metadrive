@@ -1,4 +1,5 @@
 from scenario_runner import ScenarioRunner
+from tqdm import tqdm
 import itertools
 
 if __name__ == "__main__":
@@ -8,5 +9,5 @@ if __name__ == "__main__":
     DT_RANGE = [0.02, 0.03, 0.04]
 
     SAVE_DIR = "data/benchmarking/nocars"
-    for seed, dr, dt in itertools.product(SEED_RANGE, DR_RANGE, DT_RANGE):
+    for seed, dr, dt in tqdm(itertools.product(SEED_RANGE, DR_RANGE, DT_RANGE)):
         ScenarioRunner(SAVE_DIR, seed, dr, dt, traffic_density=0.0).run_scenario()
