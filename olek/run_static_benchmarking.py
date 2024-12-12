@@ -11,5 +11,5 @@ if __name__ == "__main__":
     SAVE_DIR = "data/benchmarking"
     for seed, dr, dt in tqdm(itertools.product(SEED_RANGE, DR_RANGE, DT_RANGE)):
         ScenarioRunner(SAVE_DIR, seed, dr, dt, traffic_density=0.0).run_scenario(
-            record_gif=True,
+            record_gif=True, repeat=True
         )
