@@ -232,7 +232,7 @@ class ScenarioRunner:
         scenario_data = {}
         scenario_data["def.map_seq"] = env.current_map.get_meta_data()["block_sequence"]
         scenario_data["def.bv_data"] = get_bv_state(env)
-
+        scenario_data["def.spawn_lane_index"] = env.agent.config["spawn_lane_index"]
         max_step = self.get_max_steps(env)
         scenario_data["def.max_steps"] = max_step
 
