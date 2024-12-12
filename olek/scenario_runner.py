@@ -97,7 +97,7 @@ def get_map_img(env):
     return img
 
 
-def get_bev_state(env) -> list:
+def get_bv_state(env) -> list:
     def filter_vehicle_state(v_state: dict) -> dict:
         wanted_keys = ["length", "width", "height", "spawn_road", "destination"]
         return {key: v_state[key] for key in wanted_keys}
@@ -231,7 +231,7 @@ class ScenarioRunner:
 
         scenario_data = {}
         scenario_data["def.map_seq"] = env.current_map.get_meta_data()["block_sequence"]
-        scenario_data["def.bv_data"] = get_bev_state(env)
+        scenario_data["def.bv_data"] = get_bv_state(env)
 
         max_step = self.get_max_steps(env)
         scenario_data["def.max_steps"] = max_step
