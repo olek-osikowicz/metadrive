@@ -287,7 +287,7 @@ if __name__ == "__main__":
     NUM_SCENARIOS = 100
 
     # High fidelity only
-    SAVE_DIR = f"data/many_reset/"
+    SAVE_DIR = f"data/notisolated/"
     sr = ScenarioRunner(SAVE_DIR, NUM_SCENARIOS)
 
     for seed in range(NUM_SCENARIOS):
