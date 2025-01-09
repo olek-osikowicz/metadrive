@@ -1,4 +1,5 @@
 olek/data
+data/
 *.log
 *.csv
 *.pyc
