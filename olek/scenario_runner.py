@@ -125,6 +125,7 @@ class ScenarioRunner:
         save_dir = Path(save_dir)
         self.save_path = save_dir / f"dr_{decision_repeat}_dt_{dt}"
         self.save_path.mkdir(parents=True, exist_ok=True)
+        assert self.save_path.exists(), f"{self.save_path} does not exist!"
         self.crashed_vehicles = set()
 
     def get_max_steps(self, env: MetaDriveEnv):
