@@ -8,7 +8,7 @@ from multiprocessing import Pool
 
 multiprocessing.set_start_method("spawn", force=True)
 
-SAVE_DIR = "/home/olek/Documents/dev/metadrive-multifidelity-data/data/randomsearch_2"
+SAVE_DIR = "/home/olek/Documents/dev/metadrive-multifidelity-data/data/randomsearch"
 
 
 def do_random_search(rep, dr, dt, time_budget=60):
@@ -33,7 +33,7 @@ def do_random_search(rep, dr, dt, time_budget=60):
 
 if __name__ == "__main__":
 
-    TIME_BUDGET = 2 * 60  # 2 mins
+    TIME_BUDGET = 60 * 10  # 10 mins
     N_REPETITIONS = 50
     DR, DT = 5, 0.02
     N_PROCESSES = 10
