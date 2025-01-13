@@ -71,7 +71,7 @@ def serialize_step_info(info) -> dict:
     return info
 
 
-def process_timestamps(start_ts, initialized_ts, scenario_done_ts):
+def process_timestamps(start_ts, initialized_ts, scenario_done_ts, env_closed_ts):
     """Calculate and log time it took to initialise and run the env."""
 
     init_time = initialized_ts - start_ts
@@ -80,7 +80,10 @@ def process_timestamps(start_ts, initialized_ts, scenario_done_ts):
     scenario_time = scenario_done_ts - initialized_ts
     logger.info(f"Running the scenario took {scenario_time:.2f}s")
 
-    total_time = scenario_done_ts - start_ts
+    closing_time = env_closed_ts - scenario_done_ts
+    logger.info(f"Closing the env took {closing_time:.2f}s")
+
+    total_time = env_closed_ts - start_ts
     logger.info(f"Total scenario execution took {total_time:.2f}s")
 
     return locals()
@@ -246,9 +249,14 @@ class ScenarioRunner:
 
         scenario_done_ts = time.perf_counter()
 
+        env.close()
+
+        env_closed_ts = time.perf_counter()
         # save execution metadata
         scenario_data.update(
-            process_timestamps(start_ts, initialized_ts, scenario_done_ts)
+            process_timestamps(
+                start_ts, initialized_ts, scenario_done_ts, env_closed_ts
+            )
         )
 
         steps_info.insert(0, reset_info)
@@ -262,10 +270,8 @@ class ScenarioRunner:
             get_map_img(env).save(self.save_path / f"{self.seed}.png")
 
         data_saved_ts = time.perf_counter()
-        logger.info(f"Saving data took {data_saved_ts-scenario_done_ts:.2f}s")
+        logger.info(f"Saving data took {data_saved_ts-env_closed_ts:.2f}s")
         logger.info(f"Running scenario finished.")
-
-        env.close()
 
 
 if __name__ == "__main__":
