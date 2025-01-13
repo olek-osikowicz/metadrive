@@ -14,6 +14,8 @@ SAVE_DIR = "/home/olek/Documents/dev/metadrive-multifidelity-data/data/randomsea
 def do_random_search(rep, dr, dt, time_budget=60):
     logger.info(f"Starting random search for: {rep = }")
     start_ts = time.time()
+
+    random.seed(rep)
     for it in count():
         logger.info(f"Starting iteration {it = }")
         env_seed = random.randint(100, 10**10)
@@ -30,7 +32,6 @@ def do_random_search(rep, dr, dt, time_budget=60):
 
 
 if __name__ == "__main__":
-    random.seed(2137)
 
     TIME_BUDGET = 2 * 60  # 2 mins
     N_REPETITIONS = 50
