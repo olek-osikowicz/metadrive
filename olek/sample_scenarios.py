@@ -23,7 +23,7 @@ if __name__ == "__main__":
     start_ts = time.time()
     random.seed(2137)
     N_SAMPLES = 20_000
-    START_SEED = 10 * 6
+    START_SEED = 10**6
     env_seeds = [i for i in range(START_SEED, START_SEED + N_SAMPLES)]
     with Pool() as p:
         p.map(sample_scenario, env_seeds)
