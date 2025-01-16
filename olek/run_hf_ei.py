@@ -1,4 +1,4 @@
-from scenario_runner import ScenarioRunner, logger
+from utils.scenario_runner import ScenarioRunner, logger
 
 from itertools import count, product
 import random

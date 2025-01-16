@@ -1,4 +1,4 @@
-from scenario_runner import ScenarioRunner, logger
+from utils.scenario_runner import ScenarioRunner, logger
 import time
 import random
 import multiprocessing
@@ -19,7 +19,7 @@ def sample_scenario(seed):
 
 
 if __name__ == "__main__":
-
+    # TODO Make it FAST, and sample 100k or 1M
     start_ts = time.time()
     random.seed(2137)
     N_SAMPLES = 20_000

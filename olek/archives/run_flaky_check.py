@@ -1,4 +1,4 @@
-from scenario_runner import ScenarioRunner
+from olek.utils.scenario_runner import ScenarioRunner
 from tqdm import tqdm
 import itertools
 
