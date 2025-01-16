@@ -86,7 +86,6 @@ def get_mean_and_std(X_train, y_train, X_test):
 
 
 def expected_improvement(mean, std, best_score):
-    print(f"Current best score is: {best_score:.3f}")
 
     # return std
     ei = best_score - mean
@@ -124,8 +123,10 @@ def get_aqusition_values(train_df, candidates, aq_type="ei"):
     mean, std = get_mean_and_std(X_train, y_train, X_test)
     print(f"Best from model: {mean.min():.3f}")
 
+    current_best = y_train.min()
+    print(f"Current best score is: {current_best:.3f}")
+
     if aq_type == "ei":
-        current_best = y_train.min()
         aq = expected_improvement(mean, std, current_best)
     elif aq_type == "ucb":
         aq = upper_confidence_bound(mean, std)
