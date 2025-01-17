@@ -36,8 +36,8 @@ BUDGETING_STRATEGY_SEEDS = {
 
 
 DATA_DIR = Path("/home/olek/Documents/dev/metadrive-multifidelity-data/data")
-
 SAMPLED_SCENARIOS_DIR = DATA_DIR / "sampled_scenarios"
+SEARCH_DIR = DATA_DIR / "searches"
 
 
 def get_candidate_solutions():
@@ -66,7 +66,7 @@ def do_search(rep, search_type="randomsearch", budgeting_strategy="wallclock_tim
 
     # REPETITION SETUP
     dr, dt = HF_DR, HF_DT
-    rep_path = DATA_DIR / budgeting_strategy / search_type / str(rep)
+    rep_path = SEARCH_DIR / budgeting_strategy / search_type / str(rep)
 
     # set random seed from rep and search type
     random_seed = rep
@@ -131,23 +131,29 @@ if __name__ == "__main__":
 
     search_types = [
         "randomsearch",
-        "bayesopt_hf_ucb",
         "bayesopt_hf_ei",
+        "bayesopt_hf_ucb",
     ]
-    budgeting_strategy = "wallclock_time"
 
-    for search_type in search_types:
-        logger.info(
-            f"Starting {search_type} with {budgeting_strategy = } {N_PROCESSES = } and {N_REPETITIONS = }"
-        )
-        search_params = [
-            (rep, search_type, budgeting_strategy) for rep in range(N_REPETITIONS)
-        ]
-        print(search_params)
-        with Pool(N_PROCESSES, maxtasksperchild=1) as p:
-            p.starmap(do_search, search_params)
+    budgeting_strategies = [
+        "wallclock_time",
+        "acquire&driving_time",
+        "driving_time",
+    ]
+    for budgeting_strategy in budgeting_strategies:
 
-        logger.info(f"Finished {search_type}!")
-        time.sleep(5)
+        for search_type in search_types:
+            logger.info(
+                f"Starting {search_type} with {budgeting_strategy = } {N_PROCESSES = } and {N_REPETITIONS = }"
+            )
+            search_params = [
+                (rep, search_type, budgeting_strategy) for rep in range(N_REPETITIONS)
+            ]
+            print(search_params)
+            with Pool(N_PROCESSES, maxtasksperchild=1) as p:
+                p.starmap(do_search, search_params)
+
+            logger.info(f"Finished {search_type} with {budgeting_strategy = } !")
+            time.sleep(5)
 
     logger.info("All experiments finished :))")
