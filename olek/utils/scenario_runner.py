@@ -73,8 +73,15 @@ def serialize_step_info(info) -> dict:
     return info
 
 
-def process_timestamps(start_ts, initialized_ts, scenario_done_ts, env_closed_ts):
-    """Calculate and log time it took to initialise and run the env."""
+def process_timestamps(
+    start_ts, initialized_ts, scenario_done_ts, env_closed_ts
+) -> dict:
+    """
+    Calculate and log the time it took to initialize and run the environment.
+
+    Returns:
+        dict: A dictionary with the time data.
+    """
 
     init_time = initialized_ts - start_ts
     logger.info(f"Initializing the env took {init_time:.2f}s")
@@ -223,7 +230,29 @@ class ScenarioRunner:
 
     def run_scenario(
         self, record_gif=False, repeat=False, dry_run=False, save_map=False
-    ):
+    ) -> dict:
+        """
+        Run a scenario and save the results.
+
+        Parameters:
+        - record_gif (bool): If True, records a GIF of the scenario. Default is False.
+        - repeat (bool): If True, runs the scenario even if data already exists. Default is False.
+        - dry_run (bool): If True, runs the scenario without executing the main loop. Default is False.
+        - save_map (bool): If True, saves the map image. Default is False.
+
+        Returns:
+        - dict: A dictionary containing timing information of different stages of the scenario execution.
+
+        The function performs the following steps:
+        1. Checks if data for the scenario already exists and skips execution if `repeat` is False.
+        2. Initializes the environment and resets it.
+        3. Collects initial scenario data including map sequence, vehicle state, spawn lane index, and maximum steps.
+        4. Runs the main loop to collect step information if `dry_run` is False.
+        5. Closes the environment and processes timestamps for different stages.
+        6. Saves the scenario data and step information to a JSON file.
+        7. Optionally saves the map image if `save_map` is True.
+        8. Logs the time taken to save data and indicates the completion of the scenario run.
+        """
 
         start_ts = time.perf_counter()
 
@@ -239,6 +268,8 @@ class ScenarioRunner:
         scenario_data["def.map_seq"] = env.current_map.get_meta_data()["block_sequence"]
         scenario_data["def.bv_data"] = get_bv_state(env)
         scenario_data["def.spawn_lane_index"] = env.agent.config["spawn_lane_index"][-1]
+        # Add distance to scenario definition?
+        # scenario_data['def.distance'] = env.agent.navigation.total_length
         max_step = self.get_max_steps(env)
         scenario_data["def.max_steps"] = max_step
 
@@ -255,11 +286,10 @@ class ScenarioRunner:
 
         env_closed_ts = time.perf_counter()
         # save execution metadata
-        scenario_data.update(
-            process_timestamps(
-                start_ts, initialized_ts, scenario_done_ts, env_closed_ts
-            )
+        timings = process_timestamps(
+            start_ts, initialized_ts, scenario_done_ts, env_closed_ts
         )
+        scenario_data.update(timings)
 
         steps_info.insert(0, reset_info)
         scenario_data["steps_infos"] = steps_info
@@ -274,6 +304,7 @@ class ScenarioRunner:
         data_saved_ts = time.perf_counter()
         logger.info(f"Saving data took {data_saved_ts-env_closed_ts:.2f}s")
         logger.info(f"Running scenario finished.")
+        return timings
 
 
 if __name__ == "__main__":
