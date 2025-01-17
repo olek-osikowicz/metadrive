@@ -60,8 +60,11 @@ def do_search(rep, search_type="randomsearch"):
     logger.info(f"Starting {search_type} search for: {rep = }")
     dr, dt = HF_DR, HF_DT
 
-    random.seed(rep)
-    np.random.seed(rep)
+    # calculate random seed from rep and search type
+    random_seed = rep + 10**6 * int("".join(str(ord(c)) for c in search_type))
+    logger.info(f"Setting random seed to: {random_seed}")
+    random.seed(random_seed)
+    np.random.seed(random_seed)
 
     #  TODO refactor
     choosing_times = []
