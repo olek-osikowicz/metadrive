@@ -21,6 +21,13 @@ SEARCH_TIME_BUDGET = 60 * 10  # 10 mins
 HF_DR = 5
 HF_DT = 0.02
 
+SEEDS = {
+    "randomsearch": 1,
+    "bayesopt_hf_ei": 2,
+    "bayesopt_mf_ei": 3,
+    "bayesopt_hf_ucb": 4,
+    "bayesopt_mf_ucb": 5,
+}
 
 DATA_DIR = Path("/home/olek/Documents/dev/metadrive-multifidelity-data/data")
 
@@ -45,8 +52,7 @@ def do_search(rep, search_type="randomsearch"):
     dr, dt = HF_DR, HF_DT
 
     # calculate random seed from rep and search type
-    # random_seed = rep + 10**6 * int("".join(str(ord(c)) for c in search_type))
-    random_seed = rep
+    random_seed = SEEDS[search_type] * 10**6 + rep
     logger.info(f"Setting random seed to: {random_seed}")
     random.seed(random_seed)
     np.random.seed(random_seed)
@@ -56,9 +62,9 @@ def do_search(rep, search_type="randomsearch"):
     rep_path = DATA_DIR / search_type / str(rep)
 
     candidates = get_candidate_solutions()
+
     start_ts = time.perf_counter()
     for it in count():
-        it_path = rep_path / str(it)
         logger.info(f"Starting iteration {it = }")
 
         # choose the next scenario to evaluate given search type
@@ -82,6 +88,7 @@ def do_search(rep, search_type="randomsearch"):
         logger.info(
             f"Next scenario to evaluate is {env_seed=} at fidelity: ({dr=}, {dt=})"
         )
+        it_path = rep_path / str(it)
         ScenarioRunner(it_path, env_seed, dr, dt, traffic_density=0).run_scenario(
             repeat=True
         )
