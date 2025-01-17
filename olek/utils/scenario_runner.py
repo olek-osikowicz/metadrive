@@ -17,8 +17,10 @@ import datetime
 
 logger = get_logger()
 now = datetime.datetime.now()
-file_handler = logging.FileHandler(f"logs/{now.strftime('%Y-%m-%d_%H-%M-%S')}.log")
-formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+file_handler = logging.FileHandler(f"logs/{now.strftime('%Y-%m-%d_%H:%M')}.log")
+formatter = logging.Formatter(
+    "%(asctime)s - %(name)s - %(levelname)s - %(process)d - %(message)s"
+)
 file_handler.setFormatter(formatter)
 logger.addHandler(file_handler)
 

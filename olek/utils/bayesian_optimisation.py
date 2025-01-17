@@ -6,6 +6,7 @@ from sklearn.ensemble import RandomForestRegressor
 
 import pandas as pd
 import numpy as np
+from utils.scenario_runner import logger
 
 
 def drop_constant_columns(df: pd.DataFrame, verbose=False) -> pd.DataFrame:
@@ -14,7 +15,7 @@ def drop_constant_columns(df: pd.DataFrame, verbose=False) -> pd.DataFrame:
         if len(series.map(str).unique()) == 1:
             df = df.drop(series_name, axis=1)
             if verbose:
-                print(f"Dropped: {series_name}")
+                logger.info(f"Dropped: {series_name}")
 
     return df
 
@@ -89,26 +90,47 @@ def expected_improvement(mean, std, best_score):
 
     # return std
     ei = best_score - mean
-    print(f"Maximum EI: {ei.max():.3f}")
+    logger.info(f"Maximum EI: {ei.max():.3f}")
 
     ei = np.maximum(0, ei)
-    print(f"Maximum positive EI: {ei.max():.3f}")
+    logger.info(f"Maximum positive EI: {ei.max():.3f}")
 
     ei = ei + std
-    print(f"Maximum EI with uncertainty: {ei.max():.3f}")
+    logger.info(f"Maximum EI with uncertainty: {ei.max():.3f}")
     return ei
 
 
 def upper_confidence_bound(mean, std):
     ucb = 1 - mean
-    print(f"Maximum fitness: {ucb.max():.3f}")
+    logger.info(f"Maximum fitness: {ucb.max():.3f}")
 
     ucb = ucb + std
-    print(f"Maximum UCB: {ucb.max():.3f}")
+    logger.info(f"Maximum UCB: {ucb.max():.3f}")
     return ucb
 
 
-def get_aqusition_values(train_df, candidates, aq_type="ei"):
+def get_random_scenario_seed(candidates):
+    # sample 1 candidate and return the seed
+    return candidates.sample(1).index.values[0][-1]
+
+
+def get_next_scenario_seed_from_aq(aq, candidates):
+
+    assert len(aq) == len(candidates), "AQ and candidates must have the same length"
+
+    if aq.max() == 0:
+        logger.info(f"Maximum AQ 0, taking random candidate!")
+        env_seed = get_random_scenario_seed(candidates)
+    else:
+        logger.info(f"Maximum AQ {aq.max():.3f}, taking best candidate!")
+        idx_to_evaluate = aq.argmax()
+        env_seed = candidates.iloc[[idx_to_evaluate]].index.values[0][-1]
+
+    return env_seed
+
+
+def bayes_opt_iteration(train_df, candidates, aq_type="ei") -> int:
+    """Returns next scenario seed to evaluate from candidates using Bayesian optimization"""
 
     # Filter out already evaluated candidates
     candidates = candidates[~candidates.index.isin(train_df.index)]
@@ -119,12 +141,12 @@ def get_aqusition_values(train_df, candidates, aq_type="ei"):
     # use columns that are present in the evaluated scenarios data
     X_test = X_test[X_train.columns]
 
+    current_best = y_train.min()
+    logger.info(f"Current best score is: {current_best:.3f}")
+
     # train the model
     mean, std = get_mean_and_std(X_train, y_train, X_test)
-    print(f"Best from model: {mean.min():.3f}")
-
-    current_best = y_train.min()
-    print(f"Current best score is: {current_best:.3f}")
+    logger.info(f"Best from model: {mean.min():.3f}")
 
     if aq_type == "ei":
         aq = expected_improvement(mean, std, current_best)
@@ -133,7 +155,7 @@ def get_aqusition_values(train_df, candidates, aq_type="ei"):
     else:
         raise ValueError("Invalid acquisition function")
 
-    return aq
+    return get_next_scenario_seed_from_aq(aq, candidates)
 
 
 # regression_pipeline(get_training_data())

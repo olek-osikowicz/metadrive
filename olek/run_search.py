@@ -1,5 +1,5 @@
 from utils.scenario_runner import ScenarioRunner, logger
-from utils.bayesian_optimisation import get_aqusition_values
+from utils.bayesian_optimisation import bayes_opt_iteration, get_random_scenario_seed
 
 from itertools import count, product
 import random
@@ -35,24 +35,8 @@ def get_training_data(rep_path):
 
     # Optionally we could later load the benchmarking data here
     # skipping for now as we start fresh every time
-    ei_df = get_scenarios_df(rep_path)
-    return ei_df
-
-
-def get_random_scenario_seed(candidates):
-    # sample 1 candidate and return the seed
-    return candidates.sample(1).index.values[0][-1]
-
-
-def get_next_scenario_seed_from_aq(aq, candidates):
-    if aq.max() == 0:
-        logger.info(f"Maximum AQ 0, taking random candidate!")
-        env_seed = get_random_scenario_seed(candidates)
-    else:
-        logger.info(f"Maximum AQ {aq.max():.3f}, taking best candidate!")
-        idx_to_evaluate = aq.argmax()
-        env_seed = candidates.iloc[[idx_to_evaluate]].index.values[0][-1]
-    return env_seed
+    logger.info(f"Loading training data from: {rep_path}")
+    return get_scenarios_df(rep_path)
 
 
 def do_search(rep, search_type="randomsearch"):
@@ -61,7 +45,8 @@ def do_search(rep, search_type="randomsearch"):
     dr, dt = HF_DR, HF_DT
 
     # calculate random seed from rep and search type
-    random_seed = rep + 10**6 * int("".join(str(ord(c)) for c in search_type))
+    # random_seed = rep + 10**6 * int("".join(str(ord(c)) for c in search_type))
+    random_seed = rep
     logger.info(f"Setting random seed to: {random_seed}")
     random.seed(random_seed)
     np.random.seed(random_seed)
@@ -87,8 +72,7 @@ def do_search(rep, search_type="randomsearch"):
                 raise NotImplementedError("Multifidelity search not implemented yet")
 
             train_df = get_training_data(rep_path)
-            aq = get_aqusition_values(train_df, candidates, aq_type)
-            env_seed = get_next_scenario_seed_from_aq(aq, candidates)
+            env_seed = bayes_opt_iteration(train_df, candidates, aq_type)
 
         choosing_time = time.perf_counter() - choose_next_start
         choosing_times.append(choosing_time)
@@ -114,7 +98,7 @@ def do_search(rep, search_type="randomsearch"):
 if __name__ == "__main__":
 
     N_REPETITIONS = 50
-    N_PROCESSES = 1
+    N_PROCESSES = 5
 
     search_types = [
         "bayesopt_hf_ucb",
