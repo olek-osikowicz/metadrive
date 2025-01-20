@@ -73,9 +73,7 @@ def serialize_step_info(info) -> dict:
     return info
 
 
-def process_timestamps(
-    start_ts, initialized_ts, scenario_done_ts, env_closed_ts
-) -> dict:
+def process_timestamps(start_ts, initialized_ts, scenario_done_ts, env_closed_ts) -> dict:
     """
     Calculate and log the time it took to initialize and run the environment.
 
@@ -192,7 +190,7 @@ class ScenarioRunner:
 
         return steps_infos
 
-    def create_env(self) -> MetaDriveEnv:
+    def create_config(self) -> dict:
         # ===== Fidelity Config =====
         fidelity_params = dict(
             decision_repeat=self.decision_repeat, physics_world_step_size=self.dt
@@ -221,12 +219,23 @@ class ScenarioRunner:
             **termination_sceme,
             **fidelity_params,
         )
-        env = MetaDriveEnv(config=cfg)
-        return env
+        return cfg
 
     def data_exists(self) -> bool:
         lst = list(self.save_path.glob(f"{self.seed}.json"))
         return bool(lst)
+
+    def get_scenario_definition_from_env(self, env: MetaDriveEnv) -> dict:
+        """Get data from the environment"""
+        data = {}
+        data["def.map_seq"] = env.current_map.get_meta_data()["block_sequence"]
+        data["def.bv_data"] = get_bv_state(env)
+        data["def.spawn_lane_index"] = env.agent.config["spawn_lane_index"][-1]
+        data["def.distance"] = env.agent.navigation.total_length
+        max_step = self.get_max_steps(env)
+        data["def.max_steps"] = max_step
+
+        return data
 
     def run_scenario(
         self, record_gif=False, repeat=False, dry_run=False, save_map=False
@@ -261,24 +270,19 @@ class ScenarioRunner:
             return
 
         # initialize
-        env = self.create_env()
+        env = MetaDriveEnv(config=self.create_config())
         _, reset_info = env.reset()
 
-        scenario_data = {}
-        scenario_data["def.map_seq"] = env.current_map.get_meta_data()["block_sequence"]
-        scenario_data["def.bv_data"] = get_bv_state(env)
-        scenario_data["def.spawn_lane_index"] = env.agent.config["spawn_lane_index"][-1]
-        # Add distance to scenario definition?
-        # scenario_data['def.distance'] = env.agent.navigation.total_length
-        max_step = self.get_max_steps(env)
-        scenario_data["def.max_steps"] = max_step
+        scenario_data = {**self.get_scenario_definition_from_env(env)}
 
         initialized_ts = time.perf_counter()
 
         # running loop if it's not a dry run
         steps_info = []
         if not dry_run:
-            steps_info = self.state_action_loop(env, max_step, record_gif)
+            steps_info = self.state_action_loop(
+                env, scenario_data["def.max_steps"], record_gif
+            )
 
         scenario_done_ts = time.perf_counter()
 

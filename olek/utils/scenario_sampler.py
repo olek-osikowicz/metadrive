@@ -1,0 +1,31 @@
+from metadrive.envs.metadrive_env import MetaDriveEnv
+from utils.scenario_runner import logger, ScenarioRunner
+from tqdm import tqdm
+import json
+import logging
+
+SAVE_DIR = (
+    "/home/olek/Documents/dev/metadrive-multifidelity-data/data/fast_sampled_scenarios"
+)
+
+
+class ScenarioSampler(ScenarioRunner):
+
+    def sample_scenario(self):
+
+        # Initialize metadrive environment
+        cfg = self.create_config()
+        cfg["log_level"] = logging.CRITICAL
+
+        env = MetaDriveEnv(config=cfg)
+        env.reset()
+
+        scenario_data = self.get_scenario_definition_from_env(env)
+        with open(self.save_path / f"{self.seed}.json", "w") as f:
+            json.dump(scenario_data, f, indent=4)
+
+        env.close()
+
+
+if __name__ == "__main__":
+    pass

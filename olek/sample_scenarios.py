@@ -1,31 +1,33 @@
 from utils.scenario_runner import ScenarioRunner, logger
+from utils.scenario_sampler import ScenarioSampler
 import time
 import random
+from tqdm.contrib.concurrent import process_map  # or thread_map
+
 import multiprocessing
 from multiprocessing import Pool
 
 multiprocessing.set_start_method("spawn", force=True)
 
 SAVE_DIR = (
-    "/home/olek/Documents/dev/metadrive-multifidelity-data/data/sampled_scenarios"
+    "/home/olek/Documents/dev/metadrive-multifidelity-data/data/fast_sampled_scenarios"
 )
 
 
 def sample_scenario(seed):
-    DR, DT = 5, 0.02
-    ScenarioRunner(SAVE_DIR, seed, DR, DT, traffic_density=0.0).run_scenario(
-        dry_run=True
-    )
+    ScenarioSampler(SAVE_DIR, seed, traffic_density=0.0).sample_scenario()
 
 
 if __name__ == "__main__":
-    # TODO Make it FAST, and sample 100k or 1M
+
     start_ts = time.time()
-    random.seed(2137)
-    N_SAMPLES = 20_000
+    logger.info("Sampling scenarios...")
+    N_SAMPLES = 100_000
     START_SEED = 10**6
-    env_seeds = [i for i in range(START_SEED, START_SEED + N_SAMPLES)]
-    with Pool() as p:
-        p.map(sample_scenario, env_seeds)
+
+    seed_range = [START_SEED + i for i in range(N_SAMPLES)]
+    process_map(sample_scenario, seed_range, chunksize=100)
+
+    logger.info("Scenarios sampled!")
 
     logger.info(f"Sampling {N_SAMPLES} scenarios took {time.time()-start_ts:.2f}s")
