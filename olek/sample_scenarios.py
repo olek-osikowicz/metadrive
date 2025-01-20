@@ -26,7 +26,7 @@ if __name__ == "__main__":
     START_SEED = 10**6
 
     seed_range = [START_SEED + i for i in range(N_SAMPLES)]
-    process_map(sample_scenario, seed_range, chunksize=100)
+    process_map(sample_scenario, seed_range, chunksize=100, max_workers=12)
 
     logger.info("Scenarios sampled!")
 

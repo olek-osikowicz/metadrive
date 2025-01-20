@@ -13,6 +13,10 @@ class ScenarioSampler(ScenarioRunner):
 
     def sample_scenario(self):
 
+        file_path = self.save_path / f"{self.seed}.json"
+        if file_path.exists():
+            logger.info(f"Scenario {self.seed} already exists, skipping...")
+            return
         # Initialize metadrive environment
         cfg = self.create_config()
         cfg["log_level"] = logging.CRITICAL
@@ -21,7 +25,7 @@ class ScenarioSampler(ScenarioRunner):
         env.reset()
 
         scenario_data = self.get_scenario_definition_from_env(env)
-        with open(self.save_path / f"{self.seed}.json", "w") as f:
+        with open(file_path, "w") as f:
             json.dump(scenario_data, f, indent=4)
 
         env.close()
