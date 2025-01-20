@@ -19,7 +19,6 @@ from utils.parse_metadrive import get_scenarios_df
 
 SMOKETEST = False
 
-SEARCH_TIME_BUDGET = 60 * 10 if not SMOKETEST else 30
 HIGH_FIDELITY = (0.02, 5)
 
 SEARCH_TYPE_SEEDS = {
@@ -131,6 +130,7 @@ if __name__ == "__main__":
 
     N_REPETITIONS = 50 if not SMOKETEST else 1
     N_PROCESSES = 5 if not SMOKETEST else 1
+    SEARCH_TIME_BUDGET = 60 * 10 if not SMOKETEST else 30
 
     search_types = [
         "bayesopt_mf_ucb",
