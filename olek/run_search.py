@@ -17,9 +17,10 @@ import sys
 sys.path.append("/home/olek/Documents/dev/metadrive-multifidelity-data/notebooks")
 from utils.parse_metadrive import get_scenarios_df
 
-SEARCH_TIME_BUDGET = 60 * 10  # 10 mins
-HF_DR = 5
-HF_DT = 0.02
+SMOKETEST = False
+
+SEARCH_TIME_BUDGET = 60 * 10 if not SMOKETEST else 30
+HIGH_FIDELITY = (0.02, 5)
 
 SEARCH_TYPE_SEEDS = {
     "randomsearch": 1,
@@ -36,16 +37,18 @@ BUDGETING_STRATEGY_SEEDS = {
 
 
 DATA_DIR = Path("/home/olek/Documents/dev/metadrive-multifidelity-data/data")
-SAMPLED_SCENARIOS_DIR = DATA_DIR / "sampled_scenarios"
-SEARCH_DIR = DATA_DIR / "searches"
+SEARCH_DIR = DATA_DIR / "new_searches_test"
 
 
 def get_candidate_solutions():
-    return get_scenarios_df(SAMPLED_SCENARIOS_DIR)
+    path = DATA_DIR / "candidate_solutions.csv"
+    assert path.exists(), "Candidate solutions not found"
+
+    df = pd.read_csv(path, index_col=0)
+    return df
 
 
-def get_training_data(rep_path):
-
+def get_training_data(rep_path: Path) -> pd.DataFrame:
     # Optionally we could later load the benchmarking data here
     # skipping for now as we start fresh every time
     logger.info(f"Loading training data from: {rep_path}")
@@ -65,7 +68,6 @@ def do_search(rep, search_type="randomsearch", budgeting_strategy="wallclock_tim
     logger.info(f"Starting {search_type} search for: {rep = } in {budgeting_strategy = }")
 
     # REPETITION SETUP
-    dr, dt = HF_DR, HF_DT
     rep_path = SEARCH_DIR / budgeting_strategy / search_type / str(rep)
 
     # set random seed from rep and search type
@@ -87,14 +89,15 @@ def do_search(rep, search_type="randomsearch", budgeting_strategy="wallclock_tim
         acquire_ts = time.perf_counter()
         if search_type == "randomsearch" or it < 3:
             env_seed = get_random_scenario_seed(candidates)
+            dt, dr = HIGH_FIDELITY
         else:
             _, fidelity, aq_type = search_type.split("_")
 
-            if fidelity == "mf":
-                raise NotImplementedError("Multifidelity search not implemented yet")
-
             train_df = get_training_data(rep_path)
-            env_seed = bayes_opt_iteration(train_df, candidates, aq_type)
+            use_multifidelity = fidelity == "mf"
+            dt, dr, env_seed = bayes_opt_iteration(
+                train_df, candidates, aq_type, multifidelity=use_multifidelity
+            )
 
         acquire_time = time.perf_counter() - acquire_ts
 
@@ -106,7 +109,7 @@ def do_search(rep, search_type="randomsearch", budgeting_strategy="wallclock_tim
 
         it_path = rep_path / str(it)
         scenario_timings = ScenarioRunner(
-            it_path, env_seed, dr, dt, traffic_density=0
+            it_path, int(env_seed), dr, dt, traffic_density=0
         ).run_scenario(repeat=True)
 
         timings.update(scenario_timings)
@@ -126,13 +129,15 @@ def do_search(rep, search_type="randomsearch", budgeting_strategy="wallclock_tim
 
 if __name__ == "__main__":
 
-    N_REPETITIONS = 50
-    N_PROCESSES = 5
+    N_REPETITIONS = 50 if not SMOKETEST else 1
+    N_PROCESSES = 5 if not SMOKETEST else 1
 
     search_types = [
-        "randomsearch",
-        "bayesopt_hf_ei",
-        "bayesopt_hf_ucb",
+        "bayesopt_mf_ucb",
+        "bayesopt_mf_ei",
+        # "bayesopt_hf_ei",
+        # "bayesopt_hf_ucb",
+        # "randomsearch",
     ]
 
     budgeting_strategies = [

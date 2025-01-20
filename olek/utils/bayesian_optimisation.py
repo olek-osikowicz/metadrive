@@ -3,30 +3,20 @@ from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OrdinalEncoder
 from sklearn.ensemble import RandomForestRegressor
-
+from typing import Tuple
 import pandas as pd
 import numpy as np
 from utils.scenario_runner import logger
 
-
-def drop_constant_columns(df: pd.DataFrame, verbose=False) -> pd.DataFrame:
-    # if a column has one element, it's constant and can be dropped
-    for series_name, series in df.items():
-        if len(series.map(str).unique()) == 1:
-            df = df.drop(series_name, axis=1)
-            if verbose:
-                logger.info(f"Dropped: {series_name}")
-
-    return df
+HIGH_FIDELITY = (0.02, 5)
 
 
 def preprocess_features(df: pd.DataFrame) -> pd.DataFrame:
+    # Drop constant columns, apart from fidelity
+    df = df.loc[:, df.nunique() > 1]
     df = df.reset_index()
-    df = drop_constant_columns(df)
     df = df.rename(columns={"dt": "fid.dt", "decision_repeat": "fid.decision_repeat"})
-    df = df.loc[
-        :, df.columns.str.startswith("fid.") | df.columns.str.startswith("def.")
-    ]
+    df = df.loc[:, df.columns.str.startswith("fid.") | df.columns.str.startswith("def.")]
     return df
 
 
@@ -68,24 +58,6 @@ def regression_pipeline(
     )
 
 
-def get_mean_and_std(X_train, y_train, X_test):
-    pipeline = regression_pipeline(X_train)
-    pipeline = pipeline.fit(X_train, y_train)
-
-    # need to decompose the pipeline
-    preprocessing = pipeline[:-1]
-    forest = pipeline[-1]
-
-    X_test_processed = preprocessing.transform(X_test)
-    tree_predictions = [tree.predict(X_test_processed) for tree in forest.estimators_]
-    tree_predictions = np.array(tree_predictions)
-    mean = np.mean(tree_predictions, axis=0)
-    std = np.std(tree_predictions, axis=0)
-
-    assert np.equal(mean, pipeline.predict(X_test)).all(), "Predicitons are not equal"
-    return mean, std
-
-
 def expected_improvement(mean, std, best_score):
 
     # return std
@@ -109,45 +81,65 @@ def upper_confidence_bound(mean, std):
     return ucb
 
 
+def get_mean_and_std_from_model(model, X_test):
+    # need to decompose the pipeline
+    preprocessing = model[:-1]
+    forest = model[-1]
+
+    X_test_processed = preprocessing.transform(X_test)
+    tree_predictions = [tree.predict(X_test_processed) for tree in forest.estimators_]
+    tree_predictions = np.array(tree_predictions)
+    mean = np.mean(tree_predictions, axis=0)
+    std = np.std(tree_predictions, axis=0)
+
+    # assert np.equal(mean, model.predict(X_test)).all(), "Predicitons are not equal"
+    return mean, std
+
+
 def get_random_scenario_seed(candidates):
     # sample 1 candidate and return the seed
-    return candidates.sample(1).index.values[0][-1]
+    return candidates.sample(1).index.values[0]
 
 
 def get_next_scenario_seed_from_aq(aq, candidates):
-
     assert len(aq) == len(candidates), "AQ and candidates must have the same length"
-
     if aq.max() == 0:
         logger.info(f"Maximum AQ 0, taking random candidate!")
-        env_seed = get_random_scenario_seed(candidates)
+        return get_random_scenario_seed(candidates)
     else:
-        logger.info(f"Maximum AQ {aq.max():.3f}, taking best candidate!")
         idx_to_evaluate = aq.argmax()
-        env_seed = candidates.iloc[[idx_to_evaluate]].index.values[0][-1]
-
-    return env_seed
+        return candidates.index[idx_to_evaluate]
 
 
-def bayes_opt_iteration(train_df, candidates, aq_type="ei") -> int:
-    """Returns next scenario seed to evaluate from candidates using Bayesian optimization"""
+def bayes_opt_iteration(
+    train_df, candidates, aq_type="ei", multifidelity=False
+) -> Tuple[float, int, int]:
 
-    # Filter out already evaluated candidates
-    candidates = candidates[~candidates.index.isin(train_df.index)]
-
-    X_train, X_test = preprocess_features(train_df), preprocess_features(candidates)
+    logger.info(
+        f"Starting Bayesian optimisation iteration with {aq_type = } and {multifidelity = }"
+    )
+    # train the model
+    X_train = preprocess_features(train_df)
     y_train = train_df["driving_score"]
 
-    # use columns that are present in the evaluated scenarios data
-    X_test = X_test[X_train.columns]
-
-    current_best = y_train.min()
+    current_best = y_train.xs(HIGH_FIDELITY).min()
     logger.info(f"Current best score is: {current_best:.3f}")
 
-    # train the model
-    mean, std = get_mean_and_std(X_train, y_train, X_test)
-    logger.info(f"Best from model: {mean.min():.3f}")
+    model = regression_pipeline(X_train).fit(X_train, y_train)
+    logger.info(f"Model trained!")
 
+    # find best candidate in high fidelity
+    candidates = candidates[~candidates.index.isin(train_df.index.get_level_values("seed"))]
+    logger.info(f"Considering next scenario from {len(candidates)} candidates.")
+
+    hf_test = preprocess_features(candidates)
+    # project to high fidelity
+    hf_test["fid.dt"] = 0.02
+    hf_test["fid.decision_repeat"] = 5
+    hf_test = hf_test[X_train.columns]
+
+    mean, std = get_mean_and_std_from_model(model, hf_test)
+    logger.info(f"Best from model: {mean.min():.3f}")
     if aq_type == "ei":
         aq = expected_improvement(mean, std, current_best)
     elif aq_type == "ucb":
@@ -155,7 +147,35 @@ def bayes_opt_iteration(train_df, candidates, aq_type="ei") -> int:
     else:
         raise ValueError("Invalid acquisition function")
 
-    return get_next_scenario_seed_from_aq(aq, candidates)
+    next_seed = get_next_scenario_seed_from_aq(aq, candidates)
 
+    if not multifidelity:
+        return *HIGH_FIDELITY, int(next_seed)
 
-# regression_pipeline(get_training_data())
+    # Aquire optimal fidelity
+    next_cadidate = candidates.loc[[next_seed]]
+    fidelity_range = [5, 10, 15, 20]
+    mf_candidates = pd.concat([next_cadidate] * len(fidelity_range), ignore_index=True)
+    mf_candidates["fid.decision_repeat"] = fidelity_range
+    mf_candidates["fid.dt"] = 0.02
+
+    mf_test = mf_candidates[X_train.columns]
+
+    predicted_dscore, _ = get_mean_and_std_from_model(model, mf_test)
+
+    # maximum allowed absolute error
+    epsilon = 0.01
+    logger.info(
+        f"Predicted scores for fidelities: {dict(zip(fidelity_range, predicted_dscore))}"
+    )
+    # go into reverse order to pick the lowest fidelity, that has acceptable error
+    for fid, dscore in list(zip(fidelity_range, predicted_dscore))[::-1]:
+        error = abs(dscore - predicted_dscore[0])
+
+        if error < epsilon:
+            logger.info(
+                f"Picking fidelity {fid} which has predicted dscore error of {error:.3f}"
+            )
+            return HIGH_FIDELITY[0], fid, int(next_seed)
+
+    raise ValueError("No fidelity found within error threshold")
