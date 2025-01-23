@@ -141,9 +141,8 @@ if __name__ == "__main__":
     ]
 
     budgeting_strategies = [
-        "wallclock_time",
-        "acquire&driving_time",
         "driving_time",
+        "wallclock_time",
     ]
     for budgeting_strategy in budgeting_strategies:
 
