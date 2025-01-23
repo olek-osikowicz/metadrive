@@ -135,9 +135,9 @@ if __name__ == "__main__":
     search_types = [
         "bayesopt_mf_ucb",
         "bayesopt_mf_ei",
-        # "bayesopt_hf_ei",
-        # "bayesopt_hf_ucb",
-        # "randomsearch",
+        "bayesopt_hf_ucb",
+        "bayesopt_hf_ei",
+        "randomsearch",
     ]
 
     budgeting_strategies = [
