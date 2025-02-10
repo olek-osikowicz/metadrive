@@ -10,6 +10,7 @@ from pathlib import Path
 import json
 
 from PIL import Image
+import cv2
 import numpy as np
 import logging
 import time
@@ -131,9 +132,11 @@ class ScenarioRunner:
         self.seed = seed
         self.decision_repeat = decision_repeat
         self.dt = dt
+        self.fps = round(1 / (dt * decision_repeat))
+        logger.info(f"{self.fps = }")
         self.traffic_density = traffic_density
         save_dir = Path(save_dir)
-        self.save_path = save_dir / f"dr_{decision_repeat}_dt_{dt}"
+        self.save_path = save_dir / f"{self.fps}"
         self.save_path.mkdir(parents=True, exist_ok=True)
         assert self.save_path.exists(), f"{self.save_path} does not exist!"
         self.crashed_vehicles = set()
@@ -158,10 +161,10 @@ class ScenarioRunner:
         return round(max_steps)
 
     def state_action_loop(
-        self, env: MetaDriveEnv, max_steps: int, record_gif: bool = False
+        self, env: MetaDriveEnv, max_steps: int, record: bool = False
     ) -> list:
         """Runs the simulations steps until max_steps limit hit"""
-        logger.info(f"Launching the scenario with {record_gif = }")
+        logger.info(f"Launching the scenario with {record = }")
         steps_infos = []
         frames = []
         while True:
@@ -174,7 +177,7 @@ class ScenarioRunner:
                 info["max_step"] = True
                 logger.info("Time out reached!")
 
-            if record_gif:
+            if record:
                 frames.append(env.render(mode="topdown", window=False))
 
             if info["crash_vehicle"]:
@@ -185,12 +188,21 @@ class ScenarioRunner:
             if terminated or truncated:
                 break
 
-        if record_gif:
-            generate_gif(frames, gif_name=f"{self.save_path}/{self.seed}.gif")
+        if record:
+            output_filename = f"{self.save_path}/{self.seed}.mp4"
+            logger.info(f"Saving gif to {output_filename}")
+            codec = cv2.VideoWriter_fourcc(*"mp4v")
+            frame_size = frames[0].shape[:2]
+            video_writer = cv2.VideoWriter(output_filename, codec, self.fps, frame_size)
+            for frame in frames:
+                frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+                video_writer.write(frame)
+            video_writer.release()
+            # generate_gif(frames, gif_name=f"{self.save_path}/{self.seed}.gif")
 
         return steps_infos
 
-    def create_config(self) -> dict:
+    def get_config(self) -> dict:
         # ===== Fidelity Config =====
         fidelity_params = dict(
             decision_repeat=self.decision_repeat, physics_world_step_size=self.dt
@@ -228,6 +240,8 @@ class ScenarioRunner:
     def get_scenario_definition_from_env(self, env: MetaDriveEnv) -> dict:
         """Get data from the environment"""
         data = {}
+        data["fid.dt"] = self.dt
+        data["fid.decision_repeat"] = self.decision_repeat
         data["def.map_seq"] = env.current_map.get_meta_data()["block_sequence"]
         data["def.bv_data"] = get_bv_state(env)
         data["def.spawn_lane_index"] = env.agent.config["spawn_lane_index"][-1]
@@ -238,13 +252,13 @@ class ScenarioRunner:
         return data
 
     def run_scenario(
-        self, record_gif=False, repeat=False, dry_run=False, save_map=False
+        self, record=False, repeat=False, dry_run=False, save_map=False
     ) -> dict:
         """
         Run a scenario and save the results.
 
         Parameters:
-        - record_gif (bool): If True, records a GIF of the scenario. Default is False.
+        - record (bool): If True, records a video of the scenario. Default is False.
         - repeat (bool): If True, runs the scenario even if data already exists. Default is False.
         - dry_run (bool): If True, runs the scenario without executing the main loop. Default is False.
         - save_map (bool): If True, saves the map image. Default is False.
@@ -270,7 +284,7 @@ class ScenarioRunner:
             return
 
         # initialize
-        env = MetaDriveEnv(config=self.create_config())
+        env = MetaDriveEnv(config=self.get_config())
         _, reset_info = env.reset()
 
         scenario_data = {**self.get_scenario_definition_from_env(env)}
@@ -280,9 +294,7 @@ class ScenarioRunner:
         # running loop if it's not a dry run
         steps_info = []
         if not dry_run:
-            steps_info = self.state_action_loop(
-                env, scenario_data["def.max_steps"], record_gif
-            )
+            steps_info = self.state_action_loop(env, scenario_data["def.max_steps"], record)
 
         scenario_done_ts = time.perf_counter()
 
@@ -315,5 +327,5 @@ if __name__ == "__main__":
 
     # ScenarioRunner(seed=123, decision_repeat=6, dt=0.03).run_scenario()
     ScenarioRunner("test", seed=123, decision_repeat=5, dt=0.02).run_scenario(
-        repeat=True, record_gif=True
+        repeat=True, record=True
     )
