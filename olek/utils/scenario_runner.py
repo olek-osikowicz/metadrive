@@ -156,7 +156,9 @@ class ScenarioRunner:
         max_steps = round(max_time * self.fps)  # maximum number of simulation steps frames
 
         logger.info(f"Calculating max steps with: ")
-        logger.info(f"{V_min = }, {distance = }, {max_time = }, {max_steps = }")
+        logger.info(
+            f"{V_min = }, {distance = }, {max_time = }, {self.fps = } {max_steps = }"
+        )
 
         return max_steps
 
@@ -237,6 +239,7 @@ class ScenarioRunner:
         data = {}
         data["fid.dt"] = self.dt
         data["fid.decision_repeat"] = self.decision_repeat
+        data["fid.fps"] = self.fps
         data["def.seed"] = self.seed
         data["def.map_seq"] = env.current_map.get_meta_data()["block_sequence"]
         data["def.bv_data"] = get_bv_state(env)
