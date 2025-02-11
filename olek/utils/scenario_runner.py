@@ -135,10 +135,10 @@ class ScenarioRunner:
         self.fps = round(1 / (dt * decision_repeat))
         logger.info(f"{self.fps = }")
         self.traffic_density = traffic_density
-        save_dir = Path(save_dir)
-        self.save_path = save_dir / f"{self.fps}"
-        self.save_path.mkdir(parents=True, exist_ok=True)
-        assert self.save_path.exists(), f"{self.save_path} does not exist!"
+        self.save_dir = Path(save_dir)
+        self.save_dir.mkdir(parents=True, exist_ok=True)
+        self.file_path = self.save_dir / f"{self.fps}_{self.seed}.json"
+
         self.crashed_vehicles = set()
 
     def get_max_steps(self, env: MetaDriveEnv):
@@ -152,13 +152,13 @@ class ScenarioRunner:
 
         distance = env.agent.navigation.total_length
         V_min = 2.0  # [m/s]  # set minimal velocity to 2m/s
+        max_time = distance / V_min  # [s] maximum time allowed to reach the destination
+        max_steps = round(max_time * self.fps)  # maximum number of simulation steps frames
 
-        max_steps = distance / (V_min * self.decision_repeat * self.dt)
         logger.info(f"Calculating max steps with: ")
-        logger.info(
-            f"{V_min = }, {self.decision_repeat = }, {self.dt = }, {distance = :.2f}, {round(max_steps) = }"
-        )
-        return round(max_steps)
+        logger.info(f"{V_min = }, {distance = }, {max_time = }, {max_steps = }")
+
+        return max_steps
 
     def state_action_loop(
         self, env: MetaDriveEnv, max_steps: int, record: bool = False
@@ -189,8 +189,8 @@ class ScenarioRunner:
                 break
 
         if record:
-            output_filename = f"{self.save_path}/{self.seed}.mp4"
-            logger.info(f"Saving gif to {output_filename}")
+            output_filename = self.file_path.with_suffix(".mp4")
+            logger.info(f"Saving render to {output_filename}")
             codec = cv2.VideoWriter_fourcc(*"mp4v")
             frame_size = frames[0].shape[:2]
             video_writer = cv2.VideoWriter(output_filename, codec, self.fps, frame_size)
@@ -198,7 +198,6 @@ class ScenarioRunner:
                 frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
                 video_writer.write(frame)
             video_writer.release()
-            # generate_gif(frames, gif_name=f"{self.save_path}/{self.seed}.gif")
 
         return steps_infos
 
@@ -233,15 +232,12 @@ class ScenarioRunner:
         )
         return cfg
 
-    def data_exists(self) -> bool:
-        lst = list(self.save_path.glob(f"{self.seed}.json"))
-        return bool(lst)
-
     def get_scenario_definition_from_env(self, env: MetaDriveEnv) -> dict:
         """Get data from the environment"""
         data = {}
         data["fid.dt"] = self.dt
         data["fid.decision_repeat"] = self.decision_repeat
+        data["def.seed"] = self.seed
         data["def.map_seq"] = env.current_map.get_meta_data()["block_sequence"]
         data["def.bv_data"] = get_bv_state(env)
         data["def.spawn_lane_index"] = env.agent.config["spawn_lane_index"][-1]
@@ -279,7 +275,7 @@ class ScenarioRunner:
 
         start_ts = time.perf_counter()
 
-        if self.data_exists() and not repeat:
+        if self.file_path.exists() and not repeat:
             logger.info("Data for this scenario exists skipping.")
             return
 
@@ -288,6 +284,8 @@ class ScenarioRunner:
         _, reset_info = env.reset()
 
         scenario_data = {**self.get_scenario_definition_from_env(env)}
+        if save_map:
+            get_map_img(env).save(self.file_path.with_suffix(".png"))
 
         initialized_ts = time.perf_counter()
 
@@ -311,11 +309,8 @@ class ScenarioRunner:
         scenario_data["steps_infos"] = steps_info
         scenario_data["n_crashed_vehicles"] = len(self.crashed_vehicles)
 
-        with open(self.save_path / f"{self.seed}.json", "w") as f:
+        with open(self.file_path, "w") as f:
             json.dump(scenario_data, f, indent=4)
-
-        if save_map:
-            get_map_img(env).save(self.save_path / f"{self.seed}.png")
 
         data_saved_ts = time.perf_counter()
         logger.info(f"Saving data took {data_saved_ts-env_closed_ts:.2f}s")
