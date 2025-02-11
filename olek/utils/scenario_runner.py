@@ -162,13 +162,22 @@ class ScenarioRunner:
 
         return max_steps
 
+    def get_video_writer(self) -> cv2.VideoWriter:
+        output_filename = self.file_path.with_suffix(".mp4")
+        logger.info(f"Saving render to {output_filename}")
+        codec = cv2.VideoWriter_fourcc(*"mp4v")
+        frame_size = (800, 800)
+        return cv2.VideoWriter(output_filename, codec, self.fps, frame_size)
+
     def state_action_loop(
         self, env: MetaDriveEnv, max_steps: int, record: bool = False
     ) -> list:
         """Runs the simulations steps until max_steps limit hit"""
         logger.info(f"Launching the scenario with {record = }")
         steps_infos = []
-        frames = []
+        if record:
+            video_writer = self.get_video_writer()
+
         while True:
 
             action = expert(env.agent, deterministic=True)
@@ -180,7 +189,9 @@ class ScenarioRunner:
                 logger.info("Time out reached!")
 
             if record:
-                frames.append(env.render(mode="topdown", window=False))
+                frame = env.render(mode="topdown", window=False)
+                frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+                video_writer.write(frame)
 
             if info["crash_vehicle"]:
                 self.crashed_vehicles.update(get_crashed_vehicles(env))
@@ -191,14 +202,6 @@ class ScenarioRunner:
                 break
 
         if record:
-            output_filename = self.file_path.with_suffix(".mp4")
-            logger.info(f"Saving render to {output_filename}")
-            codec = cv2.VideoWriter_fourcc(*"mp4v")
-            frame_size = frames[0].shape[:2]
-            video_writer = cv2.VideoWriter(output_filename, codec, self.fps, frame_size)
-            for frame in frames:
-                frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-                video_writer.write(frame)
             video_writer.release()
 
         return steps_infos
@@ -309,8 +312,8 @@ class ScenarioRunner:
         scenario_data.update(timings)
 
         steps_info.insert(0, reset_info)
-        scenario_data["steps_infos"] = steps_info
-        scenario_data["n_crashed_vehicles"] = len(self.crashed_vehicles)
+        scenario_data["eval.steps_infos"] = steps_info
+        scenario_data["eval.n_crashed_vehicles"] = len(self.crashed_vehicles)
 
         with open(self.file_path, "w") as f:
             json.dump(scenario_data, f, indent=4)

@@ -14,7 +14,7 @@ def get_dt(fps):
 
 if __name__ == "__main__":
 
-    SAVE_DIR = Path("/media/olek/2TB_HDD/metadrive-data/playground/high_fid_test2")
+    SAVE_DIR = Path("/media/olek/2TB_HDD/metadrive-data/playground")
     SEED_RANGE = range(100)
     REPS = 10
     FPS_RANGE = [10, 20, 30, 40, 50, 60]
