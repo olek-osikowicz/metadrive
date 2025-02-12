@@ -27,18 +27,16 @@ def run_scenario(args):
 
     save_dir = save_dir / f"{rep}"
     dt = get_dt(fps)
-    ScenarioRunner(save_dir, seed, dt=dt, traffic_density=traffic_density).run_scenario(
-        record=True
-    )
+    ScenarioRunner(save_dir, seed, dt=dt, traffic_density=traffic_density).run_scenario()
 
 
 if __name__ == "__main__":
 
-    SEED_RANGE = range(1000)
+    SEED_RANGE = range(2000)
     REPS = 10
     FPS_RANGE = [60, 50, 40, 30, 20, 10]
     use_cars = [True, False]
     jobs = list(itertools.product(SEED_RANGE, use_cars, range(REPS), FPS_RANGE))
     print(jobs)
     with logging_redirect_tqdm():
-        process_map(run_scenario, jobs, max_workers=16)
+        process_map(run_scenario, jobs, max_workers=16, chunksize=10)
