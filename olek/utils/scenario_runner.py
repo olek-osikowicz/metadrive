@@ -118,6 +118,15 @@ def get_bv_state(env) -> list:
     return bvs_states
 
 
+def scenario_file_exists(file_path: Path) -> bool:
+    try:
+        with open(file_path, "r", encoding="utf-8") as file:
+            json.load(file)  # Try to parse JSON
+        return True  # No error means it's valid JSON
+    except (json.JSONDecodeError, FileNotFoundError, IOError) as e:
+        return False
+
+
 class ScenarioRunner:
 
     def __init__(
@@ -133,7 +142,6 @@ class ScenarioRunner:
         self.decision_repeat = decision_repeat
         self.dt = dt
         self.fps = round(1 / (dt * decision_repeat))
-        logger.info(f"{self.fps = }")
         self.traffic_density = traffic_density
         self.save_dir = Path(save_dir)
         self.save_dir.mkdir(parents=True, exist_ok=True)
@@ -281,8 +289,8 @@ class ScenarioRunner:
 
         start_ts = time.perf_counter()
 
-        if self.file_path.exists() and not repeat:
-            logger.info("Data for this scenario exists skipping.")
+        if scenario_file_exists(self.file_path) and not repeat:
+            logger.info(f"Data for scenario {self.file_path} exists skipping.")
             return
 
         # initialize

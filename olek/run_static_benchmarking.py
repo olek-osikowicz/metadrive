@@ -39,4 +39,4 @@ if __name__ == "__main__":
     jobs = list(itertools.product(SEED_RANGE, use_cars, range(REPS), FPS_RANGE))
     print(jobs)
     with logging_redirect_tqdm():
-        process_map(run_scenario, jobs, max_workers=16, chunksize=10)
+        process_map(run_scenario, jobs, max_workers=10, chunksize=10)
