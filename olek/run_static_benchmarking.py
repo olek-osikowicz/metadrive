@@ -1,9 +1,6 @@
 from pathlib import Path
 from utils.scenario_runner import ScenarioRunner
-from tqdm import tqdm
 import itertools
-from tqdm.contrib.concurrent import process_map
-from tqdm.contrib.logging import logging_redirect_tqdm
 import multiprocessing
 
 multiprocessing.set_start_method("spawn", force=True)
@@ -38,5 +35,5 @@ if __name__ == "__main__":
     use_cars = [True, False]
     jobs = list(itertools.product(SEED_RANGE, use_cars, range(REPS), FPS_RANGE))
     print(jobs)
-    with logging_redirect_tqdm():
-        process_map(run_scenario, jobs, max_workers=10, chunksize=10)
+    with multiprocessing.Pool(processes=10, maxtasksperchild=1) as pool:
+        pool.map(run_scenario, jobs)
