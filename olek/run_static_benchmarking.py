@@ -24,7 +24,9 @@ def run_scenario(args):
 
     save_dir = save_dir / f"{rep}"
     dt = get_dt(fps)
-    ScenarioRunner(save_dir, seed, dt=dt, traffic_density=traffic_density).run_scenario()
+    ScenarioRunner(save_dir, seed, dt=dt, traffic_density=traffic_density).run_scenario(
+        record=True, repeat=True
+    )
 
 
 if __name__ == "__main__":

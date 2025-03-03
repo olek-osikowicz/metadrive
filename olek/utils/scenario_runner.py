@@ -29,6 +29,17 @@ file_handler.setFormatter(formatter)
 logger.addHandler(file_handler)
 
 
+class MetaDriveJSONEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.float32):
+            return float(obj)
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        if isinstance(obj, type):
+            return obj.__name__
+        return super().default(obj)
+
+
 def max_touching_distance(ego, npc):
     ego_length, ego_width = ego.get_state()["length"], ego.get_state()["width"]
     npc_length, npc_width = npc.get_state()["length"], npc.get_state()["width"]
@@ -68,13 +79,6 @@ def get_crashed_vehicles(env) -> set:
                 ret.add(npc.id)
 
     return ret
-
-
-def serialize_step_info(info) -> dict:
-    """Convert numpy floats to native so can be serialized."""
-    info["action"] = [float(x) for x in info["action"]]
-    info["raw_action"] = [float(x) for x in info["raw_action"]]
-    return info
 
 
 def process_timestamps(start_ts, initialized_ts, scenario_done_ts, env_closed_ts) -> dict:
@@ -205,7 +209,7 @@ class ScenarioRunner:
             if info["crash_vehicle"]:
                 self.crashed_vehicles.update(get_crashed_vehicles(env))
 
-            steps_infos.append(serialize_step_info(info))
+            steps_infos.append(info)
 
             if terminated or truncated:
                 break
@@ -325,7 +329,7 @@ class ScenarioRunner:
         scenario_data["eval.n_crashed_vehicles"] = len(self.crashed_vehicles)
 
         with open(self.file_path, "w") as f:
-            json.dump(scenario_data, f, indent=4)
+            json.dump(scenario_data, f, indent=4, cls=MetaDriveJSONEncoder)
 
         data_saved_ts = time.perf_counter()
         logger.info(f"Saving data took {data_saved_ts-env_closed_ts:.2f}s")
