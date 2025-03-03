@@ -32,8 +32,8 @@ if __name__ == "__main__":
     SEED_RANGE = range(2000)
     REPS = 10
     FPS_RANGE = [60, 50, 40, 30, 20, 10]
-    use_cars = [True, False]
+    use_cars = [True]
     jobs = list(itertools.product(SEED_RANGE, use_cars, range(REPS), FPS_RANGE))
     print(jobs)
-    with multiprocessing.Pool(processes=10, maxtasksperchild=1) as pool:
+    with multiprocessing.Pool(processes=5, maxtasksperchild=1) as pool:
         pool.map(run_scenario, jobs)

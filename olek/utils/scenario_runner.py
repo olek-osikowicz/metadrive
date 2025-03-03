@@ -18,7 +18,10 @@ import datetime
 
 logger = get_logger()
 now = datetime.datetime.now()
-file_handler = logging.FileHandler(f"logs/{now.strftime('%Y-%m-%d_%H:%M')}.log")
+log_dir = Path("logs")
+log_dir.mkdir(parents=True, exist_ok=True)
+log_path = log_dir / f"{now.strftime('%Y-%m-%d_%H:%M')}.log"
+file_handler = logging.FileHandler(log_path)
 formatter = logging.Formatter(
     "%(asctime)s - %(name)s - %(levelname)s - %(process)d - %(message)s"
 )
@@ -108,14 +111,10 @@ def get_map_img(env):
     return img
 
 
-def get_bv_state(env) -> list:
-    def filter_vehicle_state(v_state: dict) -> dict:
-        wanted_keys = ["length", "width", "height", "spawn_road", "destination"]
-        return {key: v_state[key] for key in wanted_keys}
-
+def get_bv_state(env) -> dict:
     vehicles = env.agent_manager.get_objects()
-    bvs_states = [filter_vehicle_state(v.get_state()) for v in vehicles.values()]
-    return bvs_states
+    # Get state of each vehicle except the agent
+    return {k: v.get_state() for k, v in vehicles.items() if k != env.agent.id}
 
 
 def scenario_file_exists(file_path: Path) -> bool:
@@ -190,6 +189,8 @@ class ScenarioRunner:
 
             action = expert(env.agent, deterministic=True)
             obs, reward, terminated, truncated, info = env.step(action)
+
+            info["bv_data"] = get_bv_state(env)
 
             if info["episode_length"] == max_steps:
                 truncated = True
