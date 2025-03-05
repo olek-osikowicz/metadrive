@@ -26,11 +26,16 @@ def is_win():
     return sys.platform == "win32"
 
 
+<<<<<<< HEAD
 assert (
     sys.version_info.major == 3
     and sys.version_info.minor >= 6
     and sys.version_info.minor < 12
 ), "python version >= 3.6, <3.12 is required"
+=======
+assert sys.version_info.major == 3 and sys.version_info.minor >= 6 and sys.version_info.minor < 13, \
+    "python version >= 3.6, <3.13 is required"
+>>>>>>> upstream/main
 
 this_directory = path.abspath(path.dirname(__file__))
 with open(path.join(this_directory, "README.md"), encoding="utf-8") as f:
@@ -45,31 +50,30 @@ install_requires = [
     "gymnasium>=0.28",
     "numpy==1.23.5",
     "matplotlib",
-    "pandas",
     "pygame",
-    "tqdm",
     "yapf",
-    "seaborn",
     "tqdm",
     "progressbar",
-    # "panda3d==1.10.8",
-    "panda3d==1.10.13",
+    "panda3d==1.10.14",
     "panda3d-gltf==0.13",  # 0.14 will bring some problems
     "pillow",
-    "pytest",
     "opencv-python",
     "lxml",
     "scipy",
     "psutil",
-    "geopandas",
     "shapely",
     "filelock",
     "Pygments",
+    "mediapy"
 ]
 
+test_requirement = [
+    "pandas",
+    "pytest",
+]
 
 cuda_requirement = [
-    "cuda-python==12.0.0",
+    "cuda-python==12.1.0",
     "PyOpenGL==3.1.6",
     "PyOpenGL-accelerate==3.1.6",
     "pyrr==0.10.3",
@@ -82,7 +86,11 @@ ros_requirement = ["zmq"]
 
 setup(
     name="metadrive-simulator",
+<<<<<<< HEAD
     python_requires=">=3.6, <3.12",  # do version check with assert
+=======
+    python_requires='>=3.6, <3.13',  # do version check with assert
+>>>>>>> upstream/main
     version=VERSION,
     description="An open-ended driving simulator with infinite scenes",
     url="https://github.com/metadriverse/metadrive",
@@ -121,7 +129,10 @@ How to publish to pypi and Draft github Release?  Noted by Zhenghao and Quanyi i
 6. Upload to production channel
     twine upload dist/*
 
-7. Draft a release on github with new version number and upload assets.zip and the generated .whl files to the release.
+7. Draft a release on github with new version number.
+Create new tag. 
+Set target to main.
+Upload assets.zip and the generated .whl files to the release.
 
 8. Publish the release
 
