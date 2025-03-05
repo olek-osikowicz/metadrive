@@ -2,7 +2,6 @@ from metadrive.envs.metadrive_env import MetaDriveEnv
 from metadrive.component.map.base_map import BaseMap
 from metadrive.component.map.pg_map import MapGenerateMethod
 from metadrive.examples.ppo_expert.torch_expert import torch_expert as expert
-from metadrive.utils import generate_gif
 
 from metadrive.engine.logger import get_logger
 from pathlib import Path
