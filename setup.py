@@ -43,7 +43,7 @@ print("We will install the following packages: ", packages)
 install_requires = [
     "requests",
     "gymnasium>=0.28",
-    "numpy==1.23.5",
+    "numpy>=1.21.6",
     "matplotlib",
     "pygame",
     "yapf",
