@@ -5,7 +5,7 @@ import multiprocessing
 
 multiprocessing.set_start_method("spawn", force=True)
 
-HDD_DIR = Path("/media/olek/2TB_HDD/metadrive-data/playground")
+HDD_DIR = Path("/media/olek/2TB_HDD/metadrive-data/respawn_traffic")
 
 
 def get_dt(fps):
@@ -31,11 +31,11 @@ def run_scenario(args):
 
 if __name__ == "__main__":
 
-    SEED_RANGE = range(2000)
-    REPS = 10
+    SEED_RANGE = range(2)
+    REPS = 2
     FPS_RANGE = [60, 50, 40, 30, 20, 10]
     use_cars = [True]
     jobs = list(itertools.product(SEED_RANGE, use_cars, range(REPS), FPS_RANGE))
     print(jobs)
-    with multiprocessing.Pool(processes=5, maxtasksperchild=1) as pool:
+    with multiprocessing.Pool(processes=10, maxtasksperchild=1) as pool:
         pool.map(run_scenario, jobs)

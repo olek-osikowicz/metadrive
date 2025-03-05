@@ -244,6 +244,8 @@ class ScenarioRunner:
             log_level=logging.INFO,  # logging.DEBUG
             start_seed=self.seed,
             traffic_density=self.traffic_density,
+            traffic_mode="respawn",
+            random_traffic=False,
             map_config=map_config,
             **termination_sceme,
             **fidelity_params,
