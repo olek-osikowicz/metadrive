@@ -18,7 +18,7 @@ class ScenarioSampler(ScenarioRunner):
             logger.info(f"Scenario {self.seed} already exists, skipping...")
             return
         # Initialize metadrive environment
-        cfg = self.create_config()
+        cfg = self.get_config()
         cfg["log_level"] = logging.CRITICAL
 
         env = MetaDriveEnv(config=cfg)

@@ -10,6 +10,7 @@ from pathlib import Path
 import json
 
 from PIL import Image
+import cv2
 import numpy as np
 import logging
 import time
@@ -17,12 +18,26 @@ import datetime
 
 logger = get_logger()
 now = datetime.datetime.now()
-file_handler = logging.FileHandler(f"logs/{now.strftime('%Y-%m-%d_%H:%M')}.log")
+log_dir = Path("logs")
+log_dir.mkdir(parents=True, exist_ok=True)
+log_path = log_dir / f"{now.strftime('%Y-%m-%d_%H:%M')}.log"
+file_handler = logging.FileHandler(log_path)
 formatter = logging.Formatter(
     "%(asctime)s - %(name)s - %(levelname)s - %(process)d - %(message)s"
 )
 file_handler.setFormatter(formatter)
 logger.addHandler(file_handler)
+
+
+class MetaDriveJSONEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.float32):
+            return float(obj)
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        if isinstance(obj, type):
+            return obj.__name__
+        return super().default(obj)
 
 
 def max_touching_distance(ego, npc):
@@ -66,13 +81,6 @@ def get_crashed_vehicles(env) -> set:
     return ret
 
 
-def serialize_step_info(info) -> dict:
-    """Convert numpy floats to native so can be serialized."""
-    info["action"] = [float(x) for x in info["action"]]
-    info["raw_action"] = [float(x) for x in info["raw_action"]]
-    return info
-
-
 def process_timestamps(start_ts, initialized_ts, scenario_done_ts, env_closed_ts) -> dict:
     """
     Calculate and log the time it took to initialize and run the environment.
@@ -107,14 +115,19 @@ def get_map_img(env):
     return img
 
 
-def get_bv_state(env) -> list:
-    def filter_vehicle_state(v_state: dict) -> dict:
-        wanted_keys = ["length", "width", "height", "spawn_road", "destination"]
-        return {key: v_state[key] for key in wanted_keys}
-
+def get_bv_state(env) -> dict:
     vehicles = env.agent_manager.get_objects()
-    bvs_states = [filter_vehicle_state(v.get_state()) for v in vehicles.values()]
-    return bvs_states
+    # Get state of each vehicle except the agent
+    return {k: v.get_state() for k, v in vehicles.items() if k != env.agent.id}
+
+
+def scenario_file_exists(file_path: Path) -> bool:
+    try:
+        with open(file_path, "r", encoding="utf-8") as file:
+            json.load(file)  # Try to parse JSON
+        return True  # No error means it's valid JSON
+    except (json.JSONDecodeError, FileNotFoundError, IOError) as e:
+        return False
 
 
 class ScenarioRunner:
@@ -131,11 +144,12 @@ class ScenarioRunner:
         self.seed = seed
         self.decision_repeat = decision_repeat
         self.dt = dt
+        self.fps = round(1 / (dt * decision_repeat))
         self.traffic_density = traffic_density
-        save_dir = Path(save_dir)
-        self.save_path = save_dir / f"dr_{decision_repeat}_dt_{dt}"
-        self.save_path.mkdir(parents=True, exist_ok=True)
-        assert self.save_path.exists(), f"{self.save_path} does not exist!"
+        self.save_dir = Path(save_dir)
+        self.save_dir.mkdir(parents=True, exist_ok=True)
+        self.file_path = self.save_dir / f"{self.fps}_{self.seed}.json"
+
         self.crashed_vehicles = set()
 
     def get_max_steps(self, env: MetaDriveEnv):
@@ -149,48 +163,63 @@ class ScenarioRunner:
 
         distance = env.agent.navigation.total_length
         V_min = 2.0  # [m/s]  # set minimal velocity to 2m/s
+        max_time = distance / V_min  # [s] maximum time allowed to reach the destination
+        max_steps = round(max_time * self.fps)  # maximum number of simulation steps frames
 
-        max_steps = distance / (V_min * self.decision_repeat * self.dt)
         logger.info(f"Calculating max steps with: ")
         logger.info(
-            f"{V_min = }, {self.decision_repeat = }, {self.dt = }, {distance = :.2f}, {round(max_steps) = }"
+            f"{V_min = }, {distance = }, {max_time = }, {self.fps = } {max_steps = }"
         )
-        return round(max_steps)
+
+        return max_steps
+
+    def get_video_writer(self) -> cv2.VideoWriter:
+        output_filename = self.file_path.with_suffix(".mp4")
+        logger.info(f"Saving render to {output_filename}")
+        codec = cv2.VideoWriter_fourcc(*"mp4v")
+        frame_size = (800, 800)
+        return cv2.VideoWriter(output_filename, codec, self.fps, frame_size)
 
     def state_action_loop(
-        self, env: MetaDriveEnv, max_steps: int, record_gif: bool = False
+        self, env: MetaDriveEnv, max_steps: int, record: bool = False
     ) -> list:
         """Runs the simulations steps until max_steps limit hit"""
-        logger.info(f"Launching the scenario with {record_gif = }")
+        logger.info(f"Launching the scenario with {record = }")
         steps_infos = []
-        frames = []
+        if record:
+            video_writer = self.get_video_writer()
+
         while True:
 
             action = expert(env.agent, deterministic=True)
             obs, reward, terminated, truncated, info = env.step(action)
+
+            info["bv_data"] = get_bv_state(env)
 
             if info["episode_length"] == max_steps:
                 truncated = True
                 info["max_step"] = True
                 logger.info("Time out reached!")
 
-            if record_gif:
-                frames.append(env.render(mode="topdown", window=False))
+            if record:
+                frame = env.render(mode="topdown", window=False)
+                frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+                video_writer.write(frame)
 
             if info["crash_vehicle"]:
                 self.crashed_vehicles.update(get_crashed_vehicles(env))
 
-            steps_infos.append(serialize_step_info(info))
+            steps_infos.append(info)
 
             if terminated or truncated:
                 break
 
-        if record_gif:
-            generate_gif(frames, gif_name=f"{self.save_path}/{self.seed}.gif")
+        if record:
+            video_writer.release()
 
         return steps_infos
 
-    def create_config(self) -> dict:
+    def get_config(self) -> dict:
         # ===== Fidelity Config =====
         fidelity_params = dict(
             decision_repeat=self.decision_repeat, physics_world_step_size=self.dt
@@ -215,19 +244,21 @@ class ScenarioRunner:
             log_level=logging.INFO,  # logging.DEBUG
             start_seed=self.seed,
             traffic_density=self.traffic_density,
+            traffic_mode="respawn",
+            random_traffic=False,
             map_config=map_config,
             **termination_sceme,
             **fidelity_params,
         )
         return cfg
 
-    def data_exists(self) -> bool:
-        lst = list(self.save_path.glob(f"{self.seed}.json"))
-        return bool(lst)
-
     def get_scenario_definition_from_env(self, env: MetaDriveEnv) -> dict:
         """Get data from the environment"""
         data = {}
+        data["fid.dt"] = self.dt
+        data["fid.decision_repeat"] = self.decision_repeat
+        data["fid.fps"] = self.fps
+        data["def.seed"] = self.seed
         data["def.map_seq"] = env.current_map.get_meta_data()["block_sequence"]
         data["def.bv_data"] = get_bv_state(env)
         data["def.spawn_lane_index"] = env.agent.config["spawn_lane_index"][-1]
@@ -238,13 +269,13 @@ class ScenarioRunner:
         return data
 
     def run_scenario(
-        self, record_gif=False, repeat=False, dry_run=False, save_map=False
+        self, record=False, repeat=False, dry_run=False, save_map=False
     ) -> dict:
         """
         Run a scenario and save the results.
 
         Parameters:
-        - record_gif (bool): If True, records a GIF of the scenario. Default is False.
+        - record (bool): If True, records a video of the scenario. Default is False.
         - repeat (bool): If True, runs the scenario even if data already exists. Default is False.
         - dry_run (bool): If True, runs the scenario without executing the main loop. Default is False.
         - save_map (bool): If True, saves the map image. Default is False.
@@ -265,24 +296,24 @@ class ScenarioRunner:
 
         start_ts = time.perf_counter()
 
-        if self.data_exists() and not repeat:
-            logger.info("Data for this scenario exists skipping.")
+        if scenario_file_exists(self.file_path) and not repeat:
+            logger.info(f"Data for scenario {self.file_path} exists skipping.")
             return
 
         # initialize
-        env = MetaDriveEnv(config=self.create_config())
+        env = MetaDriveEnv(config=self.get_config())
         _, reset_info = env.reset()
 
         scenario_data = {**self.get_scenario_definition_from_env(env)}
+        if save_map:
+            get_map_img(env).save(self.file_path.with_suffix(".png"))
 
         initialized_ts = time.perf_counter()
 
         # running loop if it's not a dry run
         steps_info = []
         if not dry_run:
-            steps_info = self.state_action_loop(
-                env, scenario_data["def.max_steps"], record_gif
-            )
+            steps_info = self.state_action_loop(env, scenario_data["def.max_steps"], record)
 
         scenario_done_ts = time.perf_counter()
 
@@ -296,14 +327,11 @@ class ScenarioRunner:
         scenario_data.update(timings)
 
         steps_info.insert(0, reset_info)
-        scenario_data["steps_infos"] = steps_info
-        scenario_data["n_crashed_vehicles"] = len(self.crashed_vehicles)
+        scenario_data["eval.steps_infos"] = steps_info
+        scenario_data["eval.n_crashed_vehicles"] = len(self.crashed_vehicles)
 
-        with open(self.save_path / f"{self.seed}.json", "w") as f:
-            json.dump(scenario_data, f, indent=4)
-
-        if save_map:
-            get_map_img(env).save(self.save_path / f"{self.seed}.png")
+        with open(self.file_path, "w") as f:
+            json.dump(scenario_data, f, indent=4, cls=MetaDriveJSONEncoder)
 
         data_saved_ts = time.perf_counter()
         logger.info(f"Saving data took {data_saved_ts-env_closed_ts:.2f}s")
@@ -315,5 +343,5 @@ if __name__ == "__main__":
 
     # ScenarioRunner(seed=123, decision_repeat=6, dt=0.03).run_scenario()
     ScenarioRunner("test", seed=123, decision_repeat=5, dt=0.02).run_scenario(
-        repeat=True, record_gif=True
+        repeat=True, record=True
     )
