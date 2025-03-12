@@ -466,7 +466,7 @@ class TopDownSemanticColor:
             ret = np.array([140, 140, 140])
         # vehicle
         elif MetaDriveType.is_vehicle(type):
-            ret = np.array([224, 177, 67])
+            ret = np.array([224, 67, 67])
         # construction object
         elif MetaDriveType.is_traffic_object(type):
             ret = np.array([67, 143, 224])
