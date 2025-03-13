@@ -1,31 +1,25 @@
+from functools import cached_property
+from itertools import count
 from metadrive.envs.metadrive_env import MetaDriveEnv
 from metadrive.component.map.base_map import BaseMap
 from metadrive.component.map.pg_map import MapGenerateMethod
-from metadrive.examples.ppo_expert.torch_expert import torch_expert as expert
-
 from metadrive.engine.logger import get_logger
+from metadrive.examples.ppo_expert.numpy_expert import expert
+
+# from metadrive.examples.ppo_expert.torch_expert import torch_expert as expert
+
 from pathlib import Path
-
 import json
-
-from PIL import Image
-import cv2
 import numpy as np
 import logging
 import time
-import datetime
+import cv2
 
-logger = get_logger()
-now = datetime.datetime.now()
-log_dir = Path("logs")
-log_dir.mkdir(parents=True, exist_ok=True)
-log_path = log_dir / f"{now.strftime('%Y-%m-%d_%H:%M')}.log"
-file_handler = logging.FileHandler(log_path)
-formatter = logging.Formatter(
-    "%(asctime)s - %(name)s - %(levelname)s - %(process)d - %(message)s"
-)
-file_handler.setFormatter(formatter)
-logger.addHandler(file_handler)
+WORLD_FPS = 60
+RECORD_VIDEO_FPS = 10
+
+# pixels per meter for recording
+RENDER_SCALING = 3
 
 
 class MetaDriveJSONEncoder(json.JSONEncoder):
@@ -37,87 +31,6 @@ class MetaDriveJSONEncoder(json.JSONEncoder):
         if isinstance(obj, type):
             return obj.__name__
         return super().default(obj)
-
-
-def max_touching_distance(ego, npc):
-    ego_length, ego_width = ego.get_state()["length"], ego.get_state()["width"]
-    npc_length, npc_width = npc.get_state()["length"], npc.get_state()["width"]
-
-    # Pythagorean theorem
-    dist = np.sqrt(
-        (ego_length / 2 + npc_length / 2) ** 2 + (ego_width / 2 + npc_width / 2) ** 2
-    )
-    # add 10% just in case
-    dist = dist * 1.1
-    return dist
-
-
-def get_crashed_vehicles(env) -> set:
-
-    ret = set()
-    ego = env.agent
-    npcs = env.agent_manager.get_objects()
-
-    # iterate over npc vehicles
-    for npc in npcs.values():
-        npc_state = npc.get_state()
-
-        # if npc crashed
-        if npc_state["crash_vehicle"]:
-
-            # calculate distance beetween them
-            distance = np.linalg.norm(ego.position - npc.position)
-
-            # calculate max_touching_distance, (collision threshold)
-            max_dist = max_touching_distance(ego, npc)
-
-            # pprint(f"{distance = }")
-            # pprint(f"{max_touching_distance(ego, npc) = }")
-
-            if npc.id is not ego.id and distance < max_dist:
-                ret.add(npc.id)
-
-    return ret
-
-
-def process_timestamps(start_ts, initialized_ts, scenario_done_ts, env_closed_ts) -> dict:
-    """
-    Calculate and log the time it took to initialize and run the environment.
-
-    Returns:
-        dict: A dictionary with the time data.
-    """
-
-    init_time = initialized_ts - start_ts
-    logger.info(f"Initializing the env took {init_time:.2f}s")
-
-    scenario_time = scenario_done_ts - initialized_ts
-    logger.info(f"Running the scenario took {scenario_time:.2f}s")
-
-    closing_time = env_closed_ts - scenario_done_ts
-    logger.info(f"Closing the env took {closing_time:.2f}s")
-
-    total_time = env_closed_ts - start_ts
-    logger.info(f"Total scenario execution took {total_time:.2f}s")
-
-    return locals()
-
-
-def get_map_img(env):
-    """Get map image of the current environment"""
-    map = env.current_map.get_semantic_map(
-        env.current_map.get_center_point(),
-    )
-    map = map.squeeze()  # reduce dimensionality
-    map = (map * 255 * 4).astype(np.uint8)
-    img = Image.fromarray(map)
-    return img
-
-
-def get_bv_state(env) -> dict:
-    vehicles = env.agent_manager.get_objects()
-    # Get state of each vehicle except the agent
-    return {k: v.get_state() for k, v in vehicles.items() if k != env.agent.id}
 
 
 def scenario_file_exists(file_path: Path) -> bool:
@@ -133,25 +46,85 @@ class ScenarioRunner:
 
     def __init__(
         self,
-        save_dir: str,
+        save_dir: str | Path,
         seed: int = 0,
-        decision_repeat: int = 5,
-        dt: float = 0.02,
-        traffic_density: float = 0.1,
+        ads_fps: int = 10,
     ) -> None:
 
-        self.seed = seed
-        self.decision_repeat = decision_repeat
-        self.dt = dt
-        self.fps = round(1 / (dt * decision_repeat))
-        self.traffic_density = traffic_density
+        start_ts = time.perf_counter()
+
+        self.log = get_logger()
+
         self.save_dir = Path(save_dir)
         self.save_dir.mkdir(parents=True, exist_ok=True)
-        self.file_path = self.save_dir / f"{self.fps}_{self.seed}.json"
+        self.log.info(f"Saving data to {self.save_dir}")
+        self.file_path = self.save_dir / f"{ads_fps}_{seed}.json"
 
+        self.seed = seed
+        assert WORLD_FPS % ads_fps == 0, "ADS FPS must be a divisor of worlds FPS"
+        self.ads_fps = ads_fps
         self.crashed_vehicles = set()
 
-    def get_max_steps(self, env: MetaDriveEnv):
+        # initialize
+        self.env = MetaDriveEnv(config=self.get_config())
+        _, reset_info = self.env.reset()
+
+        assert self.env.config["decision_repeat"] == 1, "Decision repeat must be 1"
+
+        self.scenario_data = self.initialize_scenario_data()
+        self.scenario_data["reset_info"] = reset_info
+
+        self.timings = {"init_time": start_ts - time.perf_counter(), "agent_time": 0.0}
+
+    def __del__(self):
+        self.env.close()
+
+    def max_touching_distance(self, ego, npc):
+        ego_length, ego_width = ego.get_state()["length"], ego.get_state()["width"]
+        npc_length, npc_width = npc.get_state()["length"], npc.get_state()["width"]
+
+        # Pythagorean theorem
+        dist = np.sqrt(
+            (ego_length / 2 + npc_length / 2) ** 2 + (ego_width / 2 + npc_width / 2) ** 2
+        )
+        # add 10% just in case
+        dist = dist * 1.1
+        return dist
+
+    def get_crashed_vehicles(self) -> set:
+
+        ret = set()
+        ego = self.env.agent
+        npcs = self.env.agent_manager.get_objects()
+
+        # iterate over npc vehicles
+        for npc in npcs.values():
+            npc_state = npc.get_state()
+
+            # if npc crashed
+            if npc_state["crash_vehicle"]:
+
+                # calculate distance beetween them
+                distance = np.linalg.norm(ego.position - npc.position)
+
+                # calculate max_touching_distance, (collision threshold)
+                max_dist = self.max_touching_distance(ego, npc)
+
+                # pprint(f"{distance = }")
+                # pprint(f"{max_touching_distance(ego, npc) = }")
+
+                if npc.id is not ego.id and distance < max_dist:
+                    ret.add(npc.id)
+
+        return ret
+
+    def get_bv_state(self) -> dict:
+        vehicles = self.env.agent_manager.get_objects()
+        # Get state of each vehicle except the agent
+        return {k: v.get_state() for k, v in vehicles.items() if k != self.env.agent.id}
+
+    @cached_property
+    def max_steps(self) -> int:
         """
         Return maximum number of simulation steps.
 
@@ -160,72 +133,23 @@ class ScenarioRunner:
         Adaptable to fidelity parameters.
         """
 
-        distance = env.agent.navigation.total_length
+        distance = self.env.agent.navigation.total_length
         V_min = 2.0  # [m/s]  # set minimal velocity to 2m/s
         max_time = distance / V_min  # [s] maximum time allowed to reach the destination
-        max_steps = round(max_time * self.fps)  # maximum number of simulation steps frames
+        max_steps = round(max_time * WORLD_FPS)  # maximum number of simulation steps frames
 
-        logger.info(f"Calculating max steps with: ")
-        logger.info(
-            f"{V_min = }, {distance = }, {max_time = }, {self.fps = } {max_steps = }"
+        self.log.info(f"Calculating max steps with: ")
+        self.log.info(
+            f"{V_min = :.2f}, {distance = :.2f}, {max_time = :.2f}, {WORLD_FPS = } {max_steps = }"
         )
 
         return max_steps
 
-    def get_video_writer(self) -> cv2.VideoWriter:
-        output_filename = self.file_path.with_suffix(".mp4")
-        logger.info(f"Saving render to {output_filename}")
-        codec = cv2.VideoWriter_fourcc(*"mp4v")
-        frame_size = (800, 800)
-        return cv2.VideoWriter(output_filename, codec, self.fps, frame_size)
+    def get_config(self, dr=1) -> dict:
 
-    def state_action_loop(
-        self, env: MetaDriveEnv, max_steps: int, record: bool = False
-    ) -> list:
-        """Runs the simulations steps until max_steps limit hit"""
-        logger.info(f"Launching the scenario with {record = }")
-        steps_infos = []
-        if record:
-            video_writer = self.get_video_writer()
-
-        while True:
-
-            action = expert(env.agent, deterministic=True)
-            obs, reward, terminated, truncated, info = env.step(action)
-
-            info["bv_data"] = get_bv_state(env)
-
-            if info["episode_length"] == max_steps:
-                truncated = True
-                info["max_step"] = True
-                logger.info("Time out reached!")
-
-            if record:
-                frame = env.render(mode="topdown", window=False)
-                frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-                video_writer.write(frame)
-
-            if info["crash_vehicle"]:
-                self.crashed_vehicles.update(get_crashed_vehicles(env))
-
-            steps_infos.append(info)
-
-            if terminated or truncated:
-                break
-
-        if record:
-            video_writer.release()
-
-        return steps_infos
-
-    def get_config(self) -> dict:
-        # ===== Fidelity Config =====
-        fidelity_params = dict(
-            decision_repeat=self.decision_repeat, physics_world_step_size=self.dt
-        )
-
+        dt = 1 / WORLD_FPS
         # ===== Termination Scheme =====
-        termination_sceme = dict(
+        termination_scheme = dict(
             out_of_route_done=False,
             on_continuous_line_done=False,
             crash_vehicle_done=False,
@@ -238,38 +162,36 @@ class ScenarioRunner:
             BaseMap.GENERATE_CONFIG: 5,  # 20 block
         }
 
-        cfg = dict(
+        return dict(
             # use_render=True,
             log_level=logging.INFO,  # logging.DEBUG
-            start_seed=self.seed,
-            traffic_density=self.traffic_density,
+            traffic_density=0.01,
             traffic_mode="respawn",
             random_traffic=False,
             map_config=map_config,
-            **termination_sceme,
-            **fidelity_params,
+            **termination_scheme,
+            decision_repeat=dr,
+            physics_world_step_size=dt,
+            start_seed=self.seed,
         )
-        return cfg
 
-    def get_scenario_definition_from_env(self, env: MetaDriveEnv) -> dict:
+    def initialize_scenario_data(self) -> dict:
         """Get data from the environment"""
         data = {}
-        data["fid.dt"] = self.dt
-        data["fid.decision_repeat"] = self.decision_repeat
-        data["fid.fps"] = self.fps
+
+        data["fid.ads_fps"] = self.ads_fps
+        data["fid.world_fps"] = WORLD_FPS
         data["def.seed"] = self.seed
-        data["def.map_seq"] = env.current_map.get_meta_data()["block_sequence"]
-        data["def.bv_data"] = get_bv_state(env)
-        data["def.spawn_lane_index"] = env.agent.config["spawn_lane_index"][-1]
-        data["def.distance"] = env.agent.navigation.total_length
-        max_step = self.get_max_steps(env)
-        data["def.max_steps"] = max_step
+        data["def.map_seq"] = self.env.current_map.get_meta_data()["block_sequence"]
+        data["def.bv_data"] = self.get_bv_state()
+        data["def.spawn_lane_index"] = self.env.agent.config["spawn_lane_index"][-1]
+        data["def.distance"] = self.env.agent.navigation.total_length
+        data["def.max_steps"] = self.max_steps
+        data["def.env_config"] = self.env.config.get_serializable_dict()
 
         return data
 
-    def run_scenario(
-        self, record=False, repeat=False, dry_run=False, save_map=False
-    ) -> dict:
+    def run_scenario(self, record=False, repeat=False, dry_run=False) -> dict:
         """
         Run a scenario and save the results.
 
@@ -277,70 +199,117 @@ class ScenarioRunner:
         - record (bool): If True, records a video of the scenario. Default is False.
         - repeat (bool): If True, runs the scenario even if data already exists. Default is False.
         - dry_run (bool): If True, runs the scenario without executing the main loop. Default is False.
-        - save_map (bool): If True, saves the map image. Default is False.
 
         Returns:
         - dict: A dictionary containing timing information of different stages of the scenario execution.
-
-        The function performs the following steps:
-        1. Checks if data for the scenario already exists and skips execution if `repeat` is False.
-        2. Initializes the environment and resets it.
-        3. Collects initial scenario data including map sequence, vehicle state, spawn lane index, and maximum steps.
-        4. Runs the main loop to collect step information if `dry_run` is False.
-        5. Closes the environment and processes timestamps for different stages.
-        6. Saves the scenario data and step information to a JSON file.
-        7. Optionally saves the map image if `save_map` is True.
-        8. Logs the time taken to save data and indicates the completion of the scenario run.
         """
-
-        start_ts = time.perf_counter()
-
         if scenario_file_exists(self.file_path) and not repeat:
-            logger.info(f"Data for scenario {self.file_path} exists skipping.")
+            self.log.info(f"Data for scenario {self.file_path} exists skipping.")
             return
 
-        # initialize
-        env = MetaDriveEnv(config=self.get_config())
-        _, reset_info = env.reset()
-
-        scenario_data = {**self.get_scenario_definition_from_env(env)}
-        if save_map:
-            get_map_img(env).save(self.file_path.with_suffix(".png"))
-
-        initialized_ts = time.perf_counter()
-
+        scenario_start = time.perf_counter()
         # running loop if it's not a dry run
-        steps_info = []
         if not dry_run:
-            steps_info = self.state_action_loop(env, scenario_data["def.max_steps"], record)
+            steps_infos = self.state_action_loop(record)
+        else:
+            steps_infos = []
 
-        scenario_done_ts = time.perf_counter()
+        self.timings["scenario_time"] = time.perf_counter() - scenario_start
+        self.log.info(f"Running scenario finished.")
 
-        env.close()
+        # CLOSE THE ENV
+        cleanup_start = time.perf_counter()
+        self.env.close()
+        self.timings["closing_time"] = time.perf_counter() - cleanup_start
 
-        env_closed_ts = time.perf_counter()
         # save execution metadata
-        timings = process_timestamps(
-            start_ts, initialized_ts, scenario_done_ts, env_closed_ts
-        )
-        scenario_data.update(timings)
+        self.scenario_data.update(self.timings)
 
-        steps_info.insert(0, reset_info)
-        scenario_data["eval.steps_infos"] = steps_info
-        scenario_data["eval.n_crashed_vehicles"] = len(self.crashed_vehicles)
+        self.scenario_data["eval.steps_infos"] = steps_infos
+        self.scenario_data["eval.n_crashed_vehicles"] = len(self.crashed_vehicles)
 
         with open(self.file_path, "w") as f:
-            json.dump(scenario_data, f, indent=4, cls=MetaDriveJSONEncoder)
+            json.dump(self.scenario_data, f, indent=4, cls=MetaDriveJSONEncoder)
 
-        data_saved_ts = time.perf_counter()
-        logger.info(f"Saving data took {data_saved_ts-env_closed_ts:.2f}s")
-        logger.info(f"Running scenario finished.")
-        return timings
+        self.log.info(f"Data saved!")
+
+    def state_action_loop(self, record: bool = False) -> list:
+        """Runs the simulations steps until max_steps limit hit"""
+        self.log.info(f"Launching the scenario with {record = }")
+        steps_infos = []
+        if record:
+            video_writer = self.get_video_writer()
+        skip_rate = WORLD_FPS // self.ads_fps
+        self.log.info(f"World FPS: {WORLD_FPS}, ADS FPS: {self.ads_fps}, Ratio: {skip_rate}")
+
+        for step_no in count():
+            self.log.debug(f"Step {step_no}")
+            if step_no % skip_rate == 0:
+                self.log.debug(f"Getting agent's action")
+                agent_start = time.perf_counter()
+                action = expert(self.env.agent, deterministic=True)
+                self.timings["agent_time"] += time.perf_counter() - agent_start
+
+            obs, reward, terminated, truncated, info = self.env.step(action)
+
+            # info["bv_data"] = self.get_bv_state()
+
+            if info["episode_length"] == self.max_steps:
+                truncated = True
+                info["max_step"] = True
+                self.log.info("Time out reached!")
+
+            if record and step_no % (WORLD_FPS // RECORD_VIDEO_FPS) == 0:
+                frame = self.get_frame()
+                frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+                video_writer.write(frame)
+
+            if info["crash_vehicle"]:
+                self.crashed_vehicles.update(self.get_crashed_vehicles())
+
+            steps_infos.append(info)
+
+            if terminated or truncated:
+                break
+
+        if record:
+            video_writer.release()
+
+        return steps_infos
+
+    def get_video_writer(self) -> cv2.VideoWriter:
+        output_filename = self.file_path.with_suffix(".mp4")
+        self.log.info(f"Saving render to {output_filename}")
+        codec = cv2.VideoWriter_fourcc(*"mp4v")
+        frame_size = self.screen_size
+        return cv2.VideoWriter(output_filename, codec, RECORD_VIDEO_FPS, frame_size)
+
+    @cached_property
+    def screen_size(self) -> tuple:
+        b_box = self.env.current_map.road_network.get_bounding_box()
+        x_len, y_len = b_box[1] - b_box[0], b_box[3] - b_box[2]
+        width = int(x_len * RENDER_SCALING * 1.05)
+        height = int(y_len * RENDER_SCALING * 1.05)
+        return width, height
+
+    @cached_property
+    def center_point(self) -> np.ndarray:
+        return self.env.current_map.get_center_point()
+
+    def get_frame(self):
+
+        return self.env.render(
+            mode="topdown",
+            window=False,
+            screen_size=self.screen_size,
+            camera_position=self.center_point,
+            scaling=RENDER_SCALING,
+            draw_contour=True,
+            draw_target_vehicle_trajectory=True,
+            semantic_map=False,
+            num_stack=1,
+        )
 
 
 if __name__ == "__main__":
-
-    # ScenarioRunner(seed=123, decision_repeat=6, dt=0.03).run_scenario()
-    ScenarioRunner("test", seed=123, decision_repeat=5, dt=0.02).run_scenario(
-        repeat=True, record=True
-    )
+    pass
