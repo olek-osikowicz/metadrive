@@ -5,7 +5,7 @@ import multiprocessing
 
 multiprocessing.set_start_method("spawn", force=True)
 
-HDD_DIR = Path("/media/olek/2TB_HDD/metadrive-data/new_pipeline")
+HDD_DIR = Path("/media/olek/2TB_HDD/metadrive-data/basic_traffic")
 
 
 def run_scenario(args):

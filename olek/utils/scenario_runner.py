@@ -166,7 +166,8 @@ class ScenarioRunner:
             # use_render=True,
             log_level=logging.INFO,  # logging.DEBUG
             traffic_density=0.01,
-            traffic_mode="respawn",
+            # traffic_mode="respawn",
+            traffic_mode="basic",
             random_traffic=False,
             map_config=map_config,
             **termination_scheme,
