@@ -72,7 +72,7 @@ class ScenarioRunner:
         assert self.env.config["decision_repeat"] == 1, "Decision repeat must be 1"
 
         self.scenario_data = self.initialize_scenario_data()
-        self.scenario_data["reset_info"] = reset_info
+        self.scenario_data["def.reset_info"] = reset_info
 
         self.timings = {"init_time": start_ts - time.perf_counter(), "agent_time": 0.0}
 
@@ -118,10 +118,10 @@ class ScenarioRunner:
 
         return ret
 
-    def get_bv_state(self) -> dict:
+    def get_vehicles_state(self) -> dict:
         vehicles = self.env.agent_manager.get_objects()
-        # Get state of each vehicle except the agent
-        return {k: v.get_state() for k, v in vehicles.items() if k != self.env.agent.id}
+        # Get state of each vehicle
+        return {k: v.get_state() for k, v in vehicles.items()}
 
     @cached_property
     def max_steps(self) -> int:
@@ -184,7 +184,7 @@ class ScenarioRunner:
         data["fid.world_fps"] = WORLD_FPS
         data["def.seed"] = self.seed
         data["def.map_seq"] = self.env.current_map.get_meta_data()["block_sequence"]
-        data["def.bv_data"] = self.get_bv_state()
+        data["def.vehicles_data"] = self.get_vehicles_state()
         data["def.spawn_lane_index"] = self.env.agent.config["spawn_lane_index"][-1]
         data["def.distance"] = self.env.agent.navigation.total_length
         data["def.max_steps"] = self.max_steps
@@ -253,7 +253,7 @@ class ScenarioRunner:
 
             obs, reward, terminated, truncated, info = self.env.step(action)
 
-            # info["bv_data"] = self.get_bv_state()
+            # info["vehicles_data"] = self.get_bv_state()
 
             if info["episode_length"] == self.max_steps:
                 truncated = True
