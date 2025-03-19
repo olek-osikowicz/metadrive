@@ -424,7 +424,7 @@ class TopDownRenderer:
         for name, obj in objects.items():
             frame_objects.append(
                 history_object(
-                    name=name,
+                    name=obj.class_name,
                     type=obj.metadrive_type if hasattr(obj, "metadrive_type") else MetaDriveType.OTHER,
                     heading_theta=obj.heading_theta,
                     WIDTH=obj.top_down_width,
@@ -490,11 +490,11 @@ class TopDownRenderer:
             h = v.heading_theta
             c = v.color
             h = h if abs(h) > 2 * np.pi / 180 else 0
-            alpha_f = 0
-            if self.semantic_map:
-                c = TopDownSemanticColor.get_color(v.type) * (1 - alpha_f) + alpha_f * 255
+            if v.name=='DefaultVehicle':    
+                c = v.color
             else:
-                c = (c[0] + alpha_f * (255 - c[0]), c[1] + alpha_f * (255 - c[1]), c[2] + alpha_f * (255 - c[2]))
+                c = TopDownSemanticColor.get_color(v.type)
+
             ObjectGraphics.display(
                 object=v, surface=self._frame_canvas, heading=h, color=c, draw_contour=self.contour, contour_width=2
             )
