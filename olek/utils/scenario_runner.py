@@ -74,7 +74,7 @@ class ScenarioRunner:
         self.scenario_data = self.initialize_scenario_data()
         self.scenario_data["def.reset_info"] = reset_info
 
-        self.timings = {"init_time": start_ts - time.perf_counter(), "agent_time": 0.0}
+        self.timings = {"init_time": time.perf_counter() - start_ts, "agent_time": 0.0}
 
     def __del__(self):
         self.env.close()
