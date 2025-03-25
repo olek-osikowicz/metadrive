@@ -128,7 +128,7 @@ def bayes_opt_iteration(
     model = regression_pipeline(X_train).fit(X_train, y_train)
     logger.info(f"Model trained!")
 
-    # find best candidate in high fidelity
+    # Filter candidates that we already have data for
     candidates = candidates[~candidates.index.isin(train_df.index.get_level_values("seed"))]
     logger.info(f"Considering next scenario from {len(candidates)} candidates.")
 
@@ -138,6 +138,7 @@ def bayes_opt_iteration(
     hf_test["fid.decision_repeat"] = 5
     hf_test = hf_test[X_train.columns]
 
+    # find best candidate in high fidelity
     mean, std = get_mean_and_std_from_model(model, hf_test)
     logger.info(f"Best from model: {mean.min():.3f}")
     if aq_type == "ei":
