@@ -6,16 +6,18 @@ from sklearn.ensemble import RandomForestRegressor
 from typing import Tuple
 import pandas as pd
 import numpy as np
-from utils.scenario_runner import logger
+from metadrive.engine.logger import get_logger
+from multiprocessing import Pool
+from functools import partial
 
-HIGH_FIDELITY = (0.02, 5)
+logger = get_logger()
 
 
 def preprocess_features(df: pd.DataFrame) -> pd.DataFrame:
     # Drop constant columns, apart from fidelity
     df = df.loc[:, df.nunique() > 1]
     df = df.reset_index()
-    df = df.rename(columns={"dt": "fid.dt", "decision_repeat": "fid.decision_repeat"})
+    # use fidelity and scenario definitions as features
     df = df.loc[:, df.columns.str.startswith("fid.") | df.columns.str.startswith("def.")]
     return df
 
@@ -26,6 +28,7 @@ def regression_pipeline(
     cat_features_encoder=OrdinalEncoder(
         handle_unknown="use_encoded_value", unknown_value=-1
     ),
+    seed=0,
 ) -> Pipeline:
 
     categorical_features = X.select_dtypes("object").columns
@@ -34,26 +37,20 @@ def regression_pipeline(
     # Define preprocessing steps
     preprocessor = ColumnTransformer(
         transformers=[
-            (
-                "Numeric Features",
-                SimpleImputer(strategy="constant", fill_value=-1),
-                numeric_features,
-            ),
-            (
-                "Categorical Features",
-                cat_features_encoder,
-                categorical_features,
-            ),
+            # Pass through numerical features
+            ("Numeric Features", "passthrough", numeric_features),
+            # Encode categorical features
+            ("Categorical Features", cat_features_encoder, categorical_features),
         ]
     )
+
+    regressor = regressor_cls(random_state=seed)
 
     return Pipeline(
         [
             ("preprocessor", preprocessor),
-            (
-                "regressor",
-                regressor_cls(),
-            ),
+            ("imputer", SimpleImputer(strategy="constant", fill_value=-1)),
+            ("regressor", regressor),
         ],
     )
 
@@ -82,17 +79,16 @@ def upper_confidence_bound(mean, std):
 
 
 def get_mean_and_std_from_model(model, X_test):
-    # need to decompose the pipeline
+    # Decompose the pipeline
     preprocessing = model[:-1]
     forest = model[-1]
 
     X_test_processed = preprocessing.transform(X_test)
     tree_predictions = [tree.predict(X_test_processed) for tree in forest.estimators_]
-    tree_predictions = np.array(tree_predictions)
     mean = np.mean(tree_predictions, axis=0)
     std = np.std(tree_predictions, axis=0)
 
-    # assert np.equal(mean, model.predict(X_test)).all(), "Predicitons are not equal"
+    assert np.allclose(model.predict(X_test), mean), "Predictions are not equal"
     return mean, std
 
 
