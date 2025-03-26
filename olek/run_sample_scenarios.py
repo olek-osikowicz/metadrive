@@ -25,7 +25,9 @@ if __name__ == "__main__":
     seed_range = [START_SEED + i for i in range(N_SAMPLES)]
     print(seed_range)
 
-    with multiprocessing.Pool(processes=16, maxtasksperchild=1) as pool:
+    with multiprocessing.Pool(
+        processes=multiprocessing.cpu_count(), maxtasksperchild=1
+    ) as pool:
         pool.map(sample_scenario, seed_range)
     print("Scenarios sampled!")
 
