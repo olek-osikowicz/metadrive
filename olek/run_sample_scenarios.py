@@ -12,7 +12,7 @@ HDD_DIR = Path("/media/olek/2TB_HDD/metadrive-data/sampled_scenarios")
 def sample_scenario(seed):
 
     FPS = 60  # default highfidelity
-    ScenarioRunner(HDD_DIR, seed, FPS).run_scenario()
+    ScenarioRunner(HDD_DIR, seed, FPS).run_scenario(repeat=False)
 
 
 if __name__ == "__main__":
