@@ -19,6 +19,8 @@ def preprocess_features(df: pd.DataFrame) -> pd.DataFrame:
     df = df.reset_index()
     # use fidelity and scenario definitions as features
     df = df.loc[:, df.columns.str.startswith("fid.") | df.columns.str.startswith("def.")]
+    # remove seed as it's not a feature
+    df = df.drop(columns=["def.seed"])
     return df
 
 
