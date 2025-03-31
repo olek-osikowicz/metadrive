@@ -8,9 +8,23 @@ import pandas as pd
 import numpy as np
 from metadrive.engine.logger import get_logger
 from multiprocessing import Pool
-from functools import partial
+from functools import cache, partial
+from pathlib import Path
 
 logger = get_logger()
+
+HDD_PATH = Path("/media/olek/2TB_HDD/metadrive-data")
+assert HDD_PATH.exists()
+
+@cache
+def get_candidate_solutions() -> pd.DataFrame:
+    
+    candidate_solutions_path = HDD_PATH / "candidate_solutions.json"
+    assert candidate_solutions_path.exists(), "Candidate solutions don't exist!"
+    logger.info(f"Reading candidate solutions from: {candidate_solutions_path}")
+    df = pd.read_json(candidate_solutions_path)
+    df.index = df.index.rename("def.seed")
+    return df
 
 
 def preprocess_features(df: pd.DataFrame) -> pd.DataFrame:
