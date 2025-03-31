@@ -10,21 +10,45 @@ from metadrive.engine.logger import get_logger
 from multiprocessing import Pool
 from functools import cache, partial
 from pathlib import Path
+import sys
+sys.path.append("/home/olek/Documents/dev/metadrive-multifidelity-data/notebooks")
+from utils.parse_metadrive import get_scenarios_df, process_scenario_df
 
+np.random.seed(0)
 logger = get_logger()
 
 HDD_PATH = Path("/media/olek/2TB_HDD/metadrive-data")
 assert HDD_PATH.exists()
+HIGH_FIDELITY = 60 # current high fidelity is 60 ADS fps.
 
 @cache
 def get_candidate_solutions() -> pd.DataFrame:
-    
     candidate_solutions_path = HDD_PATH / "candidate_solutions.json"
     assert candidate_solutions_path.exists(), "Candidate solutions don't exist!"
     logger.info(f"Reading candidate solutions from: {candidate_solutions_path}")
     df = pd.read_json(candidate_solutions_path)
     df.index = df.index.rename("def.seed")
     return df
+
+def get_training_data(benchmark_data=True) -> pd.DataFrame:
+    # !Currently loading benchmark data
+    # Later will load data from scenario repetition
+    if benchmark_data:
+        logger.info("Loading benchmarking data")
+        dir = HDD_PATH / "basic_traffic" / "0"
+        scenario_file = dir / "cache"
+        if not scenario_file.exists():
+            logger.info("Recreating cache")
+            df = get_scenarios_df(dir, multiprocessed=True)
+            df.to_json(scenario_file)
+
+        df = pd.read_json(scenario_file)
+        df = process_scenario_df(df)
+
+        df = df.set_index(["fid.ads_fps", "def.seed"]).sort_index()
+        return df
+    else: 
+        raise NotImplementedError()
 
 
 def preprocess_features(df: pd.DataFrame) -> pd.DataFrame:
