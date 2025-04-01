@@ -19,7 +19,8 @@ logger = get_logger()
 
 HDD_PATH = Path("/media/olek/2TB_HDD/metadrive-data")
 assert HDD_PATH.exists()
-HIGH_FIDELITY = 60 # current high fidelity is 60 ADS fps.
+# current high fidelity is 60 ADS fps.
+FIDELITY_RANGE = [10, 20, 30, 60]
 
 @cache
 def get_candidate_solutions() -> pd.DataFrame:
@@ -147,72 +148,99 @@ def get_next_scenario_seed_from_aq(aq, candidates):
         return candidates.index[idx_to_evaluate]
 
 
-def bayes_opt_iteration(
-    train_df, candidates, aq_type="ei", multifidelity=False
-) -> Tuple[float, int, int]:
+def pick_next_fidelity(next_cadidate: pd.DataFrame, scenario_features, trained_model, epsilon = 0.01) -> int:
+    """
+    Given chosed scenario decide which fidelity is safe to run.
+    Returns fidelity.
+    """
+    logger.info(f"Picking next fidelity!")
+    mf_candidates = pd.concat([next_cadidate] * len(FIDELITY_RANGE))
+    mf_candidates["fid.ads_fps"] = FIDELITY_RANGE
 
-    logger.info(
-        f"Starting Bayesian optimisation iteration with {aq_type = } and {multifidelity = }"
-    )
-    # train the model
-    X_train = preprocess_features(train_df)
-    y_train = train_df["driving_score"]
+    mf_X_test = mf_candidates.reset_index()[scenario_features]
+    
+    # predict dscore for each fidelity
+    predicted_dscore, _ = get_mean_and_std_from_model(trained_model, mf_X_test)
+    
+    predictions = dict(zip(FIDELITY_RANGE, predicted_dscore))
 
-    current_best = y_train.xs(HIGH_FIDELITY).min()
-    logger.info(f"Current best score is: {current_best:.3f}")
+    hf_prediction = predictions[max(FIDELITY_RANGE)]
+    logger.info(f"Predicted dscore for high fidelity: {hf_prediction:.3f}")
+    logger.info(str(predictions))
 
-    model = regression_pipeline(X_train).fit(X_train, y_train)
-    logger.info(f"Model trained!")
-
-    # Filter candidates that we already have data for
-    candidates = candidates[~candidates.index.isin(train_df.index.get_level_values("seed"))]
-    logger.info(f"Considering next scenario from {len(candidates)} candidates.")
-
-    hf_test = preprocess_features(candidates)
-    # project to high fidelity
-    hf_test["fid.dt"] = 0.02
-    hf_test["fid.decision_repeat"] = 5
-    hf_test = hf_test[X_train.columns]
-
-    # find best candidate in high fidelity
-    mean, std = get_mean_and_std_from_model(model, hf_test)
-    logger.info(f"Best from model: {mean.min():.3f}")
-    if aq_type == "ei":
-        aq = expected_improvement(mean, std, current_best)
-    elif aq_type == "ucb":
-        aq = upper_confidence_bound(mean, std)
-    else:
-        raise ValueError("Invalid acquisition function")
-
-    next_seed = get_next_scenario_seed_from_aq(aq, candidates)
-
-    if not multifidelity:
-        return *HIGH_FIDELITY, int(next_seed)
-
-    # Aquire optimal fidelity
-    next_cadidate = candidates.loc[[next_seed]]
-    fidelity_range = [5, 10, 15, 20]
-    mf_candidates = pd.concat([next_cadidate] * len(fidelity_range), ignore_index=True)
-    mf_candidates["fid.decision_repeat"] = fidelity_range
-    mf_candidates["fid.dt"] = 0.02
-
-    mf_test = mf_candidates[X_train.columns]
-
-    predicted_dscore, _ = get_mean_and_std_from_model(model, mf_test)
-
-    # maximum allowed absolute error
-    epsilon = 0.01
-    logger.info(
-        f"Predicted scores for fidelities: {dict(zip(fidelity_range, predicted_dscore))}"
-    )
-    # go into reverse order to pick the lowest fidelity, that has acceptable error
-    for fid, dscore in list(zip(fidelity_range, predicted_dscore))[::-1]:
-        error = abs(dscore - predicted_dscore[0])
+    # go into increasing fidelity order
+    for fid, dscore in predictions.items():
+        # maximum absolute error
+        error = abs(dscore - hf_prediction)
+        logger.info(f"Considering {fid} FPS with predicted {dscore = :.3f}, {error = :.3f}")
 
         if error < epsilon:
-            logger.info(
-                f"Picking fidelity {fid} which has predicted dscore error of {error:.3f}"
-            )
-            return HIGH_FIDELITY[0], fid, int(next_seed)
+            logger.info(f"Picking fidelity {fid} with dscore error of {error:.3f}")
+            return fid
 
-    raise ValueError("No fidelity found within error threshold")
+    raise ValueError("No fidelity with acceptable error found")
+
+
+def bayes_opt_iteration(train_df, aq_type="ei", fidelity="multifidelity") -> Tuple[int, int]:
+    """
+    Performs a single iteration of Bayesian Otpimisation
+    Returns next scenario seed, and next fidelity to run.
+    
+    """
+    
+    logger.info(f"Entering Bayesian Opt Iteration with parameters:")
+    logger.info(f"N training samples {len(train_df)}, {aq_type = }, {fidelity = }")
+    target_fidelity = fidelity
+    if fidelity == "multifidelity":
+        target_fidelity = max(FIDELITY_RANGE)
+
+
+    # PREPARE TRAINING DATA
+    X_train = preprocess_features(train_df)
+    y_train = train_df["eval.driving_score"]
+
+    current_best = y_train.xs(target_fidelity).min()
+    logger.info(f"Current best score is: {current_best:.3f}")
+
+    # TRAIN THE MODEL
+    pipe = regression_pipeline(X_train)
+    logger.info(f"Training using {len(X_train.columns)} features")
+    pipe.set_params(regressor__n_jobs=16)
+    model = pipe.fit(X_train, y_train)
+    logger.debug(f"Model trained")
+
+    # PREPARE TEST DATA
+    candidate_scenarios = get_candidate_solutions()
+    # Exclude scenarios that have been evaluated (in any fidelity)
+    candidate_scenarios = candidate_scenarios[~candidate_scenarios.index.isin(train_df.index.get_level_values("def.seed"))]
+    logger.debug(f"Considering next scenario from {len(candidate_scenarios)} candidates.")
+
+    X_test = preprocess_features(candidate_scenarios)
+    # test candidates must be casted to target fidelity
+    X_test["fid.ads_fps"] = target_fidelity
+    X_test = X_test[X_train.columns]
+
+    # PREDICT DSCORE FOR HIGHFIDELITY
+    dscore_predictions, std = get_mean_and_std_from_model(model, X_test)
+    logger.info(f"Best from model: {dscore_predictions.min():.3f}")
+
+    match aq_type:
+        case "ei":
+            aq = expected_improvement(dscore_predictions, std, current_best)
+        case "ucb":
+            aq = upper_confidence_bound(dscore_predictions, std)
+        case _:
+            raise ValueError("Invalid acquisition function")
+
+    next_seed = int(get_next_scenario_seed_from_aq(aq, candidate_scenarios))
+    logger.info(f"Next seed to evaluate: {next_seed}")
+
+    if fidelity != "multifidelity":
+        return next_seed, target_fidelity
+
+    logger.debug(f"Multifidelity enabled")
+    
+    next_cadidate = candidate_scenarios.loc[[next_seed]]
+    next_fidelity = pick_next_fidelity(next_cadidate, X_train.columns, model)
+    assert next_fidelity in FIDELITY_RANGE
+    return next_seed, next_fidelity
