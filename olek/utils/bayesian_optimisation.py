@@ -53,7 +53,7 @@ def get_training_data(benchmark_data=True) -> pd.DataFrame:
 
 def preprocess_features(df: pd.DataFrame) -> pd.DataFrame:
     # Drop constant columns, apart from fidelity
-    df = df.loc[:, df.nunique() > 1]
+    df = df.loc[:, df.nunique(dropna=False) > 1]
     df = df.reset_index()
     # use fidelity and scenario definitions as features
     df = df.loc[:, df.columns.str.startswith("fid.") | df.columns.str.startswith("def.")]
