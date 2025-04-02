@@ -11,8 +11,9 @@ from multiprocessing import Pool
 from functools import cache, partial
 from pathlib import Path
 import sys
+
 sys.path.append("/home/olek/Documents/dev/metadrive-multifidelity-data/notebooks")
-from utils.parse_metadrive import get_scenarios_df, process_scenario_df
+from utils.parse_metadrive import get_scenarios_df, process_scenario_df  # type: ignore
 
 np.random.seed(0)
 logger = get_logger()
@@ -22,6 +23,7 @@ assert HDD_PATH.exists()
 # current high fidelity is 60 ADS fps.
 FIDELITY_RANGE = [10, 20, 30, 60]
 
+
 @cache
 def get_candidate_solutions() -> pd.DataFrame:
     candidate_solutions_path = HDD_PATH / "candidate_solutions.json"
@@ -30,6 +32,7 @@ def get_candidate_solutions() -> pd.DataFrame:
     df = pd.read_json(candidate_solutions_path)
     df.index = df.index.rename("def.seed")
     return df
+
 
 def get_training_data(benchmark_data=True) -> pd.DataFrame:
     # !Currently loading benchmark data
@@ -48,7 +51,7 @@ def get_training_data(benchmark_data=True) -> pd.DataFrame:
 
         df = df.set_index(["fid.ads_fps", "def.seed"]).sort_index()
         return df
-    else: 
+    else:
         raise NotImplementedError()
 
 
@@ -148,7 +151,9 @@ def get_next_scenario_seed_from_aq(aq, candidates):
         return candidates.index[idx_to_evaluate]
 
 
-def pick_next_fidelity(next_cadidate: pd.DataFrame, scenario_features, trained_model, epsilon = 0.01) -> int:
+def pick_next_fidelity(
+    next_cadidate: pd.DataFrame, scenario_features, trained_model, epsilon=0.01
+) -> int:
     """
     Given chosed scenario decide which fidelity is safe to run.
     Returns fidelity.
@@ -158,10 +163,10 @@ def pick_next_fidelity(next_cadidate: pd.DataFrame, scenario_features, trained_m
     mf_candidates["fid.ads_fps"] = FIDELITY_RANGE
 
     mf_X_test = mf_candidates.reset_index()[scenario_features]
-    
+
     # predict dscore for each fidelity
     predicted_dscore, _ = get_mean_and_std_from_model(trained_model, mf_X_test)
-    
+
     predictions = dict(zip(FIDELITY_RANGE, predicted_dscore))
 
     hf_prediction = predictions[max(FIDELITY_RANGE)]
@@ -185,15 +190,14 @@ def bayes_opt_iteration(train_df, aq_type="ei", fidelity="multifidelity") -> Tup
     """
     Performs a single iteration of Bayesian Otpimisation
     Returns next scenario seed, and next fidelity to run.
-    
+
     """
-    
+
     logger.info(f"Entering Bayesian Opt Iteration with parameters:")
     logger.info(f"N training samples {len(train_df)}, {aq_type = }, {fidelity = }")
     target_fidelity = fidelity
     if fidelity == "multifidelity":
         target_fidelity = max(FIDELITY_RANGE)
-
 
     # PREPARE TRAINING DATA
     X_train = preprocess_features(train_df)
@@ -212,7 +216,9 @@ def bayes_opt_iteration(train_df, aq_type="ei", fidelity="multifidelity") -> Tup
     # PREPARE TEST DATA
     candidate_scenarios = get_candidate_solutions()
     # Exclude scenarios that have been evaluated (in any fidelity)
-    candidate_scenarios = candidate_scenarios[~candidate_scenarios.index.isin(train_df.index.get_level_values("def.seed"))]
+    candidate_scenarios = candidate_scenarios[
+        ~candidate_scenarios.index.isin(train_df.index.get_level_values("def.seed"))
+    ]
     logger.debug(f"Considering next scenario from {len(candidate_scenarios)} candidates.")
 
     X_test = preprocess_features(candidate_scenarios)
@@ -239,7 +245,7 @@ def bayes_opt_iteration(train_df, aq_type="ei", fidelity="multifidelity") -> Tup
         return next_seed, target_fidelity
 
     logger.debug(f"Multifidelity enabled")
-    
+
     next_cadidate = candidate_scenarios.loc[[next_seed]]
     next_fidelity = pick_next_fidelity(next_cadidate, X_train.columns, model)
     assert next_fidelity in FIDELITY_RANGE

@@ -1,5 +1,9 @@
 from utils.scenario_runner import ScenarioRunner, logger
-from utils.bayesian_optimisation import bayes_opt_iteration, get_random_scenario_seed
+from utils.bayesian_optimisation import (
+    bayes_opt_iteration,
+    get_random_scenario_seed,
+    HDD_PATH,
+)
 
 from itertools import count, product
 import random
@@ -18,26 +22,19 @@ sys.path.append("/home/olek/Documents/dev/metadrive-multifidelity-data/notebooks
 from utils.parse_metadrive import get_scenarios_df
 
 SMOKETEST = False
-SEARCH_TIME_BUDGET = 60 * 10 if not SMOKETEST else 30
+SEARCH_BUDGET = 600 if not SMOKETEST else 30
 
-HIGH_FIDELITY = (0.02, 5)
 
 SEARCH_TYPE_SEEDS = {
     "randomsearch": 1,
-    "bayesopt_hf_ei": 2,
-    "bayesopt_mf_ei": 3,
-    "bayesopt_hf_ucb": 4,
-    "bayesopt_mf_ucb": 5,
-}
-BUDGETING_STRATEGY_SEEDS = {
-    "wallclock_time": 1,
-    "acquire&driving_time": 2,
-    "driving_time": 3,
+    "bayesopt_ei": 2,
+    "bayesopt_ucb": 3,
 }
 
+SEARCH_FIDELITY_SEEDS = {10: 1, 20: 2, 30: 3, 60: 4, "multifidelity": 5}
 
-DATA_DIR = Path("/home/olek/Documents/dev/metadrive-multifidelity-data/data")
-SEARCH_DIR = DATA_DIR / "new_searches"
+
+SEARCH_DIR = HDD_PATH / "new_searches"
 
 
 def get_candidate_solutions():
