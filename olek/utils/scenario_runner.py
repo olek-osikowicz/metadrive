@@ -192,7 +192,7 @@ class ScenarioRunner:
 
         return data
 
-    def run_scenario(self, record=False, repeat=False, dry_run=False) -> dict:
+    def run_scenario(self, record=False, repeat=False, dry_run=False):
         """
         Run a scenario and save the results.
 
@@ -200,9 +200,6 @@ class ScenarioRunner:
         - record (bool): If True, records a video of the scenario. Default is False.
         - repeat (bool): If True, runs the scenario even if data already exists. Default is False.
         - dry_run (bool): If True, runs the scenario without executing the main loop. Default is False.
-
-        Returns:
-        - dict: A dictionary containing timing information of different stages of the scenario execution.
         """
         if scenario_file_exists(self.file_path) and not repeat:
             self.log.info(f"Data for scenario {self.file_path} exists skipping.")
@@ -310,6 +307,11 @@ class ScenarioRunner:
             semantic_map=False,
             num_stack=1,
         )
+
+    def get_evaluation_cost(self) -> int:
+        """Return a cost of running a scenario"""
+        # Currently implemented simply
+        return self.ads_fps // 10
 
 
 if __name__ == "__main__":
