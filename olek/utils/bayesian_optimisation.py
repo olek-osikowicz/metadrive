@@ -1,9 +1,9 @@
+import random
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OrdinalEncoder
 from sklearn.ensemble import RandomForestRegressor
-from typing import Tuple
 import pandas as pd
 import numpy as np
 from metadrive.engine.logger import get_logger
@@ -22,6 +22,22 @@ HDD_PATH = Path("/media/olek/2TB_HDD/metadrive-data")
 assert HDD_PATH.exists()
 # current high fidelity is 60 ADS fps.
 FIDELITY_RANGE = [10, 20, 30, 60]
+
+SEARCH_TYPES = ["randomsearch", "bayesopt_ei", "bayesopt_ucb"]
+SEARCH_FIDELITIES = [*FIDELITY_RANGE, "multifidelity"]
+
+
+def set_seed(repetition, search_type, fidelity):
+    """Set a unique random seed for search experiment parameters"""
+
+    random_seed = repetition
+    assert search_type in SEARCH_TYPES
+    random_seed += 10**4 * (SEARCH_TYPES.index(search_type) + 1)
+    random_seed += 10**6 * (SEARCH_FIDELITIES.index(fidelity) + 1)
+
+    logger.info(f"Setting a random seed: {random_seed}")
+    random.seed(random_seed)
+    np.random.seed(random_seed)
 
 
 @cache
@@ -141,6 +157,14 @@ def get_random_scenario_seed(candidates):
     return candidates.sample(1).index.values[0]
 
 
+def random_search_iteration(fidelity) -> tuple[int, int]:
+    """Performs random search iteration."""
+    candidates = get_candidate_solutions()
+    next_seed = get_random_scenario_seed(candidates)
+    next_fid = fidelity if fidelity != "multifidelity" else random.choice(FIDELITY_RANGE)
+    return next_seed, next_fid
+
+
 def get_next_scenario_seed_from_aq(aq, candidates):
     assert len(aq) == len(candidates), "AQ and candidates must have the same length"
     if aq.max() == 0:
@@ -186,7 +210,7 @@ def pick_next_fidelity(
     raise ValueError("No fidelity with acceptable error found")
 
 
-def bayes_opt_iteration(train_df, aq_type="ei", fidelity="multifidelity") -> Tuple[int, int]:
+def bayes_opt_iteration(train_df, aq_type="ei", fidelity="multifidelity") -> tuple[int, int]:
     """
     Performs a single iteration of Bayesian Otpimisation
     Returns next scenario seed, and next fidelity to run.

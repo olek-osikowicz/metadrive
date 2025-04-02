@@ -11,12 +11,16 @@ from pathlib import Path
 
 from utils.bayesian_optimisation import (
     FIDELITY_RANGE,
+    SEARCH_FIDELITIES,
+    SEARCH_TYPES,
     get_candidate_solutions,
     get_random_scenario_seed,
     get_training_data,
     preprocess_features,
+    random_search_iteration,
     regression_pipeline,
     bayes_opt_iteration,
+    set_seed,
 )
 
 
@@ -113,3 +117,49 @@ def test_get_random_candidate(candidate_solutions_df):
     np.random.seed(2137)
     next_seed = get_random_scenario_seed(candidate_solutions_df.copy())
     assert next_seed == 1002891
+
+
+def test_search_params():
+    assert SEARCH_TYPES == ["randomsearch", "bayesopt_ei", "bayesopt_ucb"]
+    assert SEARCH_FIDELITIES == [10, 20, 30, 60, "multifidelity"]
+
+
+def test_set_seed():
+    """Check if random state is set properly"""
+    set_seed(21, "randomsearch", "multifidelity")
+    state = np.random.get_state()
+    actual_seed = state[1][0]
+    expected = 21 + 10000 + 5000000
+    assert actual_seed == expected
+
+    set_seed(0, "bayesopt_ucb", 20)
+    state = np.random.get_state()
+    actual_seed = state[1][0]
+    expected = 0 + 30000 + 2000000
+    assert actual_seed == expected
+
+
+def test_seed_uniqueness():
+    """Checks if all the seeds that we generate are unique"""
+    seeds_seen = []
+    search_params = list(product(range(50), SEARCH_TYPES, SEARCH_FIDELITIES))
+    for search in search_params:
+        set_seed(*search)
+        state = np.random.get_state()
+        seed = state[1][0]
+        seeds_seen.append(seed)
+
+    assert sorted(seeds_seen) == sorted(list(set(seeds_seen)))
+
+
+def test_random_search_iteration():
+
+    for i, search_fid in enumerate(SEARCH_FIDELITIES):
+        set_seed(i, "randomsearch", search_fid)
+        seed_a, fid_a = random_search_iteration(search_fid)
+
+        set_seed(i, "randomsearch", search_fid)
+        seed_b, fid_b = random_search_iteration(search_fid)
+
+        assert seed_a == seed_b
+        assert fid_a == fid_b
