@@ -60,7 +60,7 @@ class ScenarioRunner:
         self.log.info(f"Saving data to {self.save_dir}")
         self.file_path = self.save_dir / f"{ads_fps}_{seed}.json"
 
-        self.seed = seed
+        self.seed = int(seed)
         assert WORLD_FPS % ads_fps == 0, "ADS FPS must be a divisor of worlds FPS"
         self.ads_fps = ads_fps
         self.crashed_vehicles = set()
