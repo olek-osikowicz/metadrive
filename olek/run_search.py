@@ -25,9 +25,6 @@ import sys
 
 logger = get_logger()
 
-sys.path.append("/home/olek/Documents/dev/metadrive-multifidelity-data/notebooks")
-from utils.parse_metadrive import get_scenarios_df
-
 SMOKETEST = True
 SEARCH_BUDGET = 600 if not SMOKETEST else 30
 INITIALIZATION_RATIO = 0.90  # run random search for 10% of BayesOpt
