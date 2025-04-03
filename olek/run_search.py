@@ -1,8 +1,13 @@
-from utils.scenario_runner import ScenarioRunner, logger
+from metadrive.engine.logger import get_logger
+from utils.scenario_runner import ScenarioRunner
 from utils.bayesian_optimisation import (
-    bayes_opt_iteration,
-    get_random_scenario_seed,
+    SEARCH_FIDELITIES,
+    SEARCH_TYPES,
     HDD_PATH,
+    bayes_opt_iteration,
+    get_training_data,
+    random_search_iteration,
+    set_seed,
 )
 
 from itertools import count, product
@@ -18,143 +23,77 @@ from pathlib import Path
 import numpy as np
 import sys
 
+logger = get_logger()
+
 sys.path.append("/home/olek/Documents/dev/metadrive-multifidelity-data/notebooks")
 from utils.parse_metadrive import get_scenarios_df
 
 SMOKETEST = False
 SEARCH_BUDGET = 600 if not SMOKETEST else 30
+INITIALIZATION_RATIO = 0.90  # run random search for 10% of BayesOpt
+N_REPETITIONS = 30 if not SMOKETEST else 2
+N_PROCESSES = 5 if not SMOKETEST else 1
+
+SEARCH_DIR = HDD_PATH / "searches"
+SEARCH_DIR.mkdir(exist_ok=True)
 
 
-SEARCH_TYPE_SEEDS = {
-    "randomsearch": 1,
-    "bayesopt_ei": 2,
-    "bayesopt_ucb": 3,
-}
+def do_search(repetition, search_type="randomsearch", fidelity="multifidelity"):
 
-SEARCH_FIDELITY_SEEDS = {10: 1, 20: 2, 30: 3, 60: 4, "multifidelity": 5}
-
-
-SEARCH_DIR = HDD_PATH / "new_searches"
-
-
-def get_candidate_solutions():
-    path = DATA_DIR / "candidate_solutions.csv"
-    assert path.exists(), "Candidate solutions not found"
-
-    df = pd.read_csv(path, index_col=0)
-    return df
-
-
-def get_training_data(rep_path: Path) -> pd.DataFrame:
-    # Optionally we could later load the benchmarking data here
-    # skipping for now as we start fresh every time
-    logger.info(f"Loading training data from: {rep_path}")
-    return get_scenarios_df(rep_path)
-
-
-def process_timings(timings: dict) -> dict:
-    return {
-        "wallclock_time": timings["acquire_time"] + timings["total_time"],
-        "acquire&driving_time": timings["acquire_time"] + timings["scenario_time"],
-        "driving_time": timings["scenario_time"],
-    }
-
-
-def do_search(rep, search_type="randomsearch", budgeting_strategy="wallclock_time"):
-
-    logger.info(f"Starting {search_type} search for: {rep = } in {budgeting_strategy = }")
+    logger.info(f"Starting {search_type} search for: {repetition = } in {fidelity = }")
 
     # REPETITION SETUP
-    rep_path = SEARCH_DIR / budgeting_strategy / search_type / str(rep)
+    rep_path = SEARCH_DIR / search_type / str(fidelity) / str(repetition)
+    set_seed(repetition, search_type, fidelity)
 
     # set random seed from rep and search type
-    random_seed = rep
-    random_seed += 10**4 * SEARCH_TYPE_SEEDS[search_type]
-    random_seed += 10**6 * BUDGETING_STRATEGY_SEEDS[budgeting_strategy]
-    logger.info(f"Setting random seed to: {random_seed}")
-    random.seed(random_seed)
-    np.random.seed(random_seed)
-
-    candidates = get_candidate_solutions()
-    current_budget = SEARCH_TIME_BUDGET
+    current_budget = SEARCH_BUDGET
 
     for it in count():
         logger.info(f"Starting iteration {it = }")
-        timings = {}
 
-        # acquire the next scenario to evaluate given search type
-        acquire_ts = time.perf_counter()
-        if search_type == "randomsearch" or it < 3:
-            env_seed = get_random_scenario_seed(candidates)
-            dt, dr = HIGH_FIDELITY
-        else:
-            _, fidelity, aq_type = search_type.split("_")
+        match search_type.split("_"):
+            case ["randomsearch"]:
+                logger.info("Random search iteration!")
+                next_seed, next_fid = random_search_iteration(fidelity)
 
-            train_df = get_training_data(rep_path)
-            use_multifidelity = fidelity == "mf"
-            dt, dr, env_seed = bayes_opt_iteration(
-                train_df, candidates, aq_type, multifidelity=use_multifidelity
-            )
-
-        acquire_time = time.perf_counter() - acquire_ts
-
-        timings["acquire_time"] = acquire_time
-        logger.info(f"Acquireing next scenario took: {acquire_time:.2f}s")
-
-        # evaluate next scenario
-        logger.info(f"Next scenario to evaluate is {env_seed=} at fidelity: ({dr=}, {dt=})")
+            case ["bayesopt", aq_type]:
+                logger.info(f"{aq_type.upper()} Baysian optimisation iteration")
+                if current_budget > INITIALIZATION_RATIO * SEARCH_BUDGET:
+                    logger.info(f"Still initializing BayesOpt, using RS iteration")
+                    next_seed, next_fid = random_search_iteration(fidelity)
+                else:
+                    logger.info(f"Doing BayesOpt iteration")
+                    train_df = get_training_data(rep_path=rep_path)
+                    next_seed, next_fid = bayes_opt_iteration(train_df, aq_type, fidelity)
+            case _:
+                raise ValueError(f"Invalid search type: {search_type}")
 
         it_path = rep_path / str(it)
-        scenario_timings = ScenarioRunner(
-            it_path, int(env_seed), dr, dt, traffic_density=0
-        ).run_scenario(repeat=True)
+        runner = ScenarioRunner(it_path, next_seed, next_fid)
+        runner.run_scenario(repeat=True)
+        cost = runner.get_evaluation_cost()
+        logger.info(f"Running this scenario cost: {cost}")
+        current_budget -= cost
 
-        timings.update(scenario_timings)
-        timings.update(process_timings(timings))
-        # Save timings to file
-        with open(it_path / "timings.txt", "w") as f:
-            f.write(str(timings))
-        # budgeting
-        budget_deduction = timings[budgeting_strategy]
-        logger.info(f"Current deduction: {budget_deduction:.2f}s in {budgeting_strategy = }")
-        current_budget -= budget_deduction
+        logger.info(f"Current budget: {current_budget}")
 
-        if current_budget < 0:
-            logger.info(f"Time elapsed!")
+        del runner
+
+        if current_budget <= 0:
+            logger.info(f"Budget finished!")
+            with open(SEARCH_DIR / "checkpoints.txt", "a") as file:
+                file.write(f"Search of {rep_path} finished successfully!")
+
             break
 
 
 if __name__ == "__main__":
 
-    N_REPETITIONS = 50 if not SMOKETEST else 1
-    N_PROCESSES = 5 if not SMOKETEST else 1
+    search_jobs = list(product(range(N_REPETITIONS), SEARCH_TYPES, SEARCH_FIDELITIES))
+    logger.info(f"Search jobs: {search_jobs}")
 
-    search_types = [
-        "bayesopt_mf_ucb",
-        "bayesopt_mf_ei",
-        "bayesopt_hf_ucb",
-        "bayesopt_hf_ei",
-        "randomsearch",
-    ]
-
-    budgeting_strategies = [
-        "driving_time",
-        "wallclock_time",
-    ]
-    for budgeting_strategy in budgeting_strategies:
-
-        for search_type in search_types:
-            logger.info(
-                f"Starting {search_type} with {budgeting_strategy = } {N_PROCESSES = } and {N_REPETITIONS = }"
-            )
-            search_params = [
-                (rep, search_type, budgeting_strategy) for rep in range(N_REPETITIONS)
-            ]
-            print(search_params)
-            with Pool(N_PROCESSES, maxtasksperchild=1) as p:
-                p.starmap(do_search, search_params)
-
-            logger.info(f"Finished {search_type} with {budgeting_strategy = } !")
-            time.sleep(5)
+    with Pool(N_PROCESSES, maxtasksperchild=1) as p:
+        p.starmap(do_search, search_jobs)
 
     logger.info("All experiments finished :))")

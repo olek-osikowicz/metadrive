@@ -44,16 +44,16 @@ def set_seed(repetition, search_type, fidelity):
 def get_candidate_solutions() -> pd.DataFrame:
     candidate_solutions_path = HDD_PATH / "candidate_solutions.json"
     assert candidate_solutions_path.exists(), "Candidate solutions don't exist!"
-    logger.info(f"Reading candidate solutions from: {candidate_solutions_path}")
+    logger.debug(f"Reading candidate solutions from: {candidate_solutions_path}")
     df = pd.read_json(candidate_solutions_path)
     df.index = df.index.rename("def.seed")
     return df
 
 
-def get_training_data(benchmark_data=True) -> pd.DataFrame:
-    # !Currently loading benchmark data
-    # Later will load data from scenario repetition
-    if benchmark_data:
+def get_training_data(benchmark_data=True, rep_path: Path | None = None) -> pd.DataFrame:
+
+    # Cached benchmarked data
+    if benchmark_data and not rep_path:
         logger.info("Loading benchmarking data")
         dir = HDD_PATH / "basic_traffic" / "0"
         scenario_file = dir / "cache"
@@ -68,7 +68,13 @@ def get_training_data(benchmark_data=True) -> pd.DataFrame:
         df = df.set_index(["fid.ads_fps", "def.seed"]).sort_index()
         return df
     else:
-        raise NotImplementedError()
+        # Load search data
+        assert rep_path and rep_path.exists()
+        logger.info(f"Loading search data from {rep_path}")
+        df = get_scenarios_df(rep_path, multiprocessed=True)
+        df = process_scenario_df(df)
+        df = df.set_index(["fid.ads_fps", "def.seed"]).sort_index()
+        return df
 
 
 def preprocess_features(df: pd.DataFrame) -> pd.DataFrame:
@@ -226,6 +232,11 @@ def bayes_opt_iteration(train_df, aq_type="ei", fidelity="multifidelity") -> tup
     # PREPARE TRAINING DATA
     X_train = preprocess_features(train_df)
     y_train = train_df["eval.driving_score"]
+
+    if target_fidelity not in train_df.index.get_level_values("fid.ads_fps"):
+        logger.warning(f"Target fidelity is not present in training set.")
+        logger.warning(f"Will run target fidelity now!")
+        return get_random_scenario_seed(get_candidate_solutions()), target_fidelity
 
     current_best = y_train.xs(target_fidelity).min()
     logger.info(f"Current best score is: {current_best:.3f}")
