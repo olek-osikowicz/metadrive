@@ -71,7 +71,7 @@ def get_training_data(benchmark_data=True, rep_path: Path | None = None) -> pd.D
         # Load search data
         assert rep_path and rep_path.exists()
         logger.info(f"Loading search data from {rep_path}")
-        df = get_scenarios_df(rep_path, multiprocessed=True)
+        df = get_scenarios_df(rep_path, multiprocessed=False)
         df = process_scenario_df(df)
         df = df.set_index(["fid.ads_fps", "def.seed"]).sort_index()
         return df
@@ -244,7 +244,7 @@ def bayes_opt_iteration(train_df, aq_type="ei", fidelity="multifidelity") -> tup
     # TRAIN THE MODEL
     pipe = regression_pipeline(X_train)
     logger.info(f"Training using {len(X_train.columns)} features")
-    pipe.set_params(regressor__n_jobs=16)
+    # pipe.set_params(regressor__n_jobs=16)
     model = pipe.fit(X_train, y_train)
     logger.debug(f"Model trained")
 

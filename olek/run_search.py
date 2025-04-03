@@ -28,13 +28,13 @@ logger = get_logger()
 sys.path.append("/home/olek/Documents/dev/metadrive-multifidelity-data/notebooks")
 from utils.parse_metadrive import get_scenarios_df
 
-SMOKETEST = False
+SMOKETEST = True
 SEARCH_BUDGET = 600 if not SMOKETEST else 30
 INITIALIZATION_RATIO = 0.90  # run random search for 10% of BayesOpt
 N_REPETITIONS = 30 if not SMOKETEST else 2
 N_PROCESSES = 5 if not SMOKETEST else 1
 
-SEARCH_DIR = HDD_PATH / "searches"
+SEARCH_DIR = HDD_PATH / "searches" if not SMOKETEST else HDD_PATH / "searches_smoketest"
 SEARCH_DIR.mkdir(exist_ok=True)
 
 
@@ -73,17 +73,17 @@ def do_search(repetition, search_type="randomsearch", fidelity="multifidelity"):
         runner = ScenarioRunner(it_path, next_seed, next_fid)
         runner.run_scenario(repeat=True)
         cost = runner.get_evaluation_cost()
+        del runner
+
         logger.info(f"Running this scenario cost: {cost}")
         current_budget -= cost
 
         logger.info(f"Current budget: {current_budget}")
 
-        del runner
-
         if current_budget <= 0:
             logger.info(f"Budget finished!")
             with open(SEARCH_DIR / "checkpoints.txt", "a") as file:
-                file.write(f"Search of {rep_path} finished successfully!")
+                file.write(f"Search of {rep_path} finished successfully!\n")
 
             break
 
