@@ -1,6 +1,7 @@
 olek/data
 data/
 *.log
+screenlog.*
 *.csv
 *.pyc
 *.gif

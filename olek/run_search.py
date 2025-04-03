@@ -29,7 +29,7 @@ SMOKETEST = True
 SEARCH_BUDGET = 600 if not SMOKETEST else 30
 INITIALIZATION_RATIO = 0.90  # run random search for 10% of BayesOpt
 N_REPETITIONS = 30 if not SMOKETEST else 2
-N_PROCESSES = 5 if not SMOKETEST else 1
+N_PROCESSES = 10
 
 SEARCH_DIR = HDD_PATH / "searches" if not SMOKETEST else HDD_PATH / "searches_smoketest"
 SEARCH_DIR.mkdir(exist_ok=True)
