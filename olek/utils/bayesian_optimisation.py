@@ -42,10 +42,10 @@ def set_seed(repetition, search_type, fidelity):
 
 @cache
 def get_candidate_solutions() -> pd.DataFrame:
-    candidate_solutions_path = HDD_PATH / "candidate_solutions.json"
+    candidate_solutions_path = HDD_PATH / "candidate_solutions.parquet"
     assert candidate_solutions_path.exists(), "Candidate solutions don't exist!"
     logger.debug(f"Reading candidate solutions from: {candidate_solutions_path}")
-    df = pd.read_json(candidate_solutions_path)
+    df = pd.read_parquet(candidate_solutions_path)
     df.index = df.index.rename("def.seed")
     return df
 
