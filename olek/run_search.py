@@ -37,11 +37,14 @@ SEARCH_DIR.mkdir(exist_ok=True)
 
 def do_search(repetition, search_type="randomsearch", fidelity="multifidelity"):
 
-    logger.info(f"Starting {search_type} search for: {repetition = } in {fidelity = }")
-
-    # REPETITION SETUP
     rep_path = SEARCH_DIR / search_type / str(fidelity) / str(repetition)
+    if rep_path.exists():
+        logger.info(f"Search already finished for {rep_path}, skipping")
+        return
+
+    logger.info(f"Starting {search_type} search for: {repetition = } in {fidelity = }")
     set_seed(repetition, search_type, fidelity)
+    # REPETITION SETUP
 
     # set random seed from rep and search type
     current_budget = SEARCH_BUDGET
