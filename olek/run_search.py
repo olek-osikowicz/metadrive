@@ -25,7 +25,7 @@ import sys
 
 logger = get_logger()
 
-SMOKETEST = True
+SMOKETEST = False
 SEARCH_BUDGET = 600 if not SMOKETEST else 30
 INITIALIZATION_RATIO = 0.90  # run random search for 10% of BayesOpt
 N_REPETITIONS = 30 if not SMOKETEST else 2
