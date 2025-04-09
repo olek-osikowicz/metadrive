@@ -9,7 +9,11 @@ import numpy as np
 from itertools import product
 from pathlib import Path
 
+sys.path.append("/home/olek/Documents/dev/metadrive-multifidelity-data/notebooks")
+from utils.parse_metadrive import get_scenarios_df, process_scenario_df  # type: ignore
+
 from utils.bayesian_optimisation import (
+    HDD_PATH,
     FIDELITY_RANGE,
     SEARCH_FIDELITIES,
     SEARCH_TYPES,
@@ -163,3 +167,15 @@ def test_random_search_iteration():
 
         assert seed_a == seed_b
         assert fid_a == fid_b
+
+
+def test_reading_search_data():
+    smoke_test = True
+    searches_path = HDD_PATH / ("searches_smoketest" if smoke_test else "searches")
+    rep_paths = list(searches_path.glob("*/*/*"))
+    rep_path = rep_paths[0]
+
+    paths = sorted(list(rep_path.rglob("*.json")))
+    seeds = [int(path.name.split(sep=".")[0].split("_")[-1]) for path in paths]
+    data = get_scenarios_df(rep_path)
+    assert data["def.seed"].to_list() == seeds
