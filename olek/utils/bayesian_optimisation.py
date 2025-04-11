@@ -1,22 +1,31 @@
 import random
+import sys
+import logging
+from functools import cache, partial
+from itertools import count
+from multiprocessing import Pool
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+from metadrive.engine.logger import get_logger
 from sklearn.compose import ColumnTransformer
+from sklearn.ensemble import RandomForestRegressor
 from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OrdinalEncoder
-from sklearn.ensemble import RandomForestRegressor
-import pandas as pd
-import numpy as np
-from metadrive.engine.logger import get_logger
-from multiprocessing import Pool
-from functools import cache, partial
-from pathlib import Path
-import sys
+
+from utils.scenario_runner import ScenarioRunner
 
 sys.path.append("/home/olek/Documents/dev/metadrive-multifidelity-data/notebooks")
 from utils.parse_metadrive import get_scenarios_df, process_scenario_df  # type: ignore
 
 np.random.seed(0)
 logger = get_logger()
+handler = logger.handlers[0]
+format_str = "[%(asctime)s] [%(processName)s] [%(levelname)s]: %(message)s"
+handler.setFormatter(logging.Formatter(format_str))
+
 
 HDD_PATH = Path("/media/olek/2TB_HDD/metadrive-data")
 assert HDD_PATH.exists()
@@ -25,6 +34,9 @@ FIDELITY_RANGE = [10, 20, 30, 60]
 
 SEARCH_TYPES = ["randomsearch", "bayesopt_ei", "bayesopt_ucb"]
 SEARCH_FIDELITIES = [*FIDELITY_RANGE, "multifidelity"]
+
+DEFAULT_SEARCH_BUDGET = 600
+BAYESOPT_INITIALIZATION_RATIO = 0.90  # run random search for 10% of BayesOpt
 
 
 def set_seed(repetition, search_type, fidelity):
@@ -285,3 +297,72 @@ def bayes_opt_iteration(train_df, aq_type="ei", fidelity="multifidelity") -> tup
     next_fidelity = pick_next_fidelity(next_cadidate, X_train.columns, model)
     assert next_fidelity in FIDELITY_RANGE
     return next_seed, next_fidelity
+
+
+# This function should run in separate process
+def do_search(
+    repetition,
+    search_type="randomsearch",
+    fidelity="multifidelity",
+    smoketest=False,
+    search_root_dir=HDD_PATH,
+):
+
+    SEARCH_DIR = Path(search_root_dir) / ("searches_smoketest" if smoketest else "searches")
+    SEARCH_DIR.mkdir(exist_ok=True, parents=True)
+
+    rep_path = SEARCH_DIR / search_type / str(fidelity) / str(repetition)
+    if rep_path.exists():
+        logger.info(f"Search already finished for {rep_path}, skipping")
+        return
+
+    logger.info(
+        f"Starting {"smoke" if smoketest else "real"} {search_type} search for: {repetition = } in {fidelity = }"
+    )
+
+    # set random seed from rep and search type
+    set_seed(repetition, search_type, fidelity)
+
+    # Initialize the search budget
+    SEARCH_BUDGET = 15 if smoketest else DEFAULT_SEARCH_BUDGET
+    logger.info(f"Search budget: {SEARCH_BUDGET}")
+    current_budget = SEARCH_BUDGET
+
+    for it in count():
+        logger.info(f"Starting iteration {it = }")
+
+        match search_type.split("_"):
+            case ["randomsearch"]:
+                logger.info("Random search iteration!")
+                next_seed, next_fid = random_search_iteration(fidelity)
+
+            case ["bayesopt", aq_type]:
+                logger.info(f"{aq_type.upper()} Baysian optimisation iteration")
+                if current_budget > BAYESOPT_INITIALIZATION_RATIO * SEARCH_BUDGET:
+                    logger.info(f"Still initializing BayesOpt, using RS iteration")
+                    next_seed, next_fid = random_search_iteration(fidelity)
+                else:
+                    logger.info(f"Doing BayesOpt iteration")
+                    train_df = get_training_data(rep_path=rep_path)
+                    next_seed, next_fid = bayes_opt_iteration(train_df, aq_type, fidelity)
+            case _:
+                raise ValueError(f"Invalid search type: {search_type}")
+
+        logger.info(f"Next seed: {next_seed}, fidelity: {next_fid}")
+        it_path = rep_path / str(it)
+        runner = ScenarioRunner(it_path, next_seed, next_fid)
+        runner.run_scenario(repeat=True)
+        cost = runner.get_evaluation_cost()
+        del runner
+
+        logger.info(f"Running this scenario cost: {cost}")
+        current_budget -= cost
+
+        logger.info(f"Current budget: {current_budget}")
+
+        if current_budget <= 0:
+            logger.info(f"Budget finished!")
+            with open(SEARCH_DIR / "checkpoints.txt", "a") as file:
+                file.write(f"Search of {rep_path} finished successfully!\n")
+
+            break
