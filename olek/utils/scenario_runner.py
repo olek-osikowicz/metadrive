@@ -68,6 +68,7 @@ class ScenarioRunner:
         # initialize
         self.env = MetaDriveEnv(config=self.get_config())
         _, reset_info = self.env.reset()
+        self.log.setLevel(logging.INFO)
 
         assert self.env.config["decision_repeat"] == 1, "Decision repeat must be 1"
 
@@ -138,9 +139,8 @@ class ScenarioRunner:
         max_time = distance / V_min  # [s] maximum time allowed to reach the destination
         max_steps = round(max_time * WORLD_FPS)  # maximum number of simulation steps frames
 
-        self.log.info(f"Calculating max steps with: ")
-        self.log.info(
-            f"{V_min = :.2f}, {distance = :.2f}, {max_time = :.2f}, {WORLD_FPS = } {max_steps = }"
+        self.log.debug(
+            f"Calculating max steps with: {V_min = :.2f}, {distance = :.2f}, {max_time = :.2f}, {WORLD_FPS = } {max_steps = }"
         )
 
         return max_steps
