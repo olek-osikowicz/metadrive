@@ -164,7 +164,7 @@ class ScenarioRunner:
 
         return dict(
             # use_render=True,
-            log_level=logging.INFO,  # logging.DEBUG
+            log_level=logging.WARN,  # logging.INFO # logging.DEBUG
             traffic_density=0.01,
             # traffic_mode="respawn",
             traffic_mode="basic",
