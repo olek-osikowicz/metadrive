@@ -23,7 +23,9 @@ from utils.parse_metadrive import get_scenarios_df, process_scenario_df  # type:
 np.random.seed(0)
 logger = get_logger()
 handler = logger.handlers[0]
-format_str = "[%(asctime)s] [%(processName)s] [%(levelname)s]: %(message)s"
+format_str = (
+    "[%(asctime)s] [%(processName)s] [%(filename)s:%(lineno)d] [%(levelname)s]: %(message)s"
+)
 handler.setFormatter(logging.Formatter(format_str))
 
 
