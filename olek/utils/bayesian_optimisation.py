@@ -33,9 +33,9 @@ HDD_PATH = Path("/media/olek/2TB_HDD/metadrive-data")
 assert HDD_PATH.exists()
 # current high fidelity is 60 ADS fps.
 FIDELITY_RANGE = [10, 20, 30, 60]
+SEARCH_FIDELITIES = [*FIDELITY_RANGE, "multifidelity"]
 
 SEARCH_TYPES = ["randomsearch", "bayesopt_ei", "bayesopt_ucb"]
-SEARCH_FIDELITIES = [*FIDELITY_RANGE, "multifidelity"]
 
 DEFAULT_SEARCH_BUDGET = 600
 BAYESOPT_INITIALIZATION_RATIO = 0.90  # run random search for 10% of BayesOpt
