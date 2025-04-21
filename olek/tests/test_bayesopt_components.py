@@ -172,10 +172,10 @@ def test_random_search_iteration():
 def test_reading_search_data():
     smoke_test = True
     searches_path = HDD_PATH / ("searches_smoketest" if smoke_test else "searches")
-    rep_paths = list(searches_path.glob("*/*/*"))
-    rep_path = rep_paths[0]
+    rep_path = searches_path / "bayesopt_ucb" / "10" / "0"
 
-    paths = sorted(list(rep_path.rglob("*.json")))
+    # Sort by iteration
+    paths = sorted(list(rep_path.rglob("*.json")), key=lambda x: int(x.parts[-2]))
     seeds = [int(path.name.split(sep=".")[0].split("_")[-1]) for path in paths]
     data = get_scenarios_df(rep_path)
     assert data["def.seed"].to_list() == seeds
