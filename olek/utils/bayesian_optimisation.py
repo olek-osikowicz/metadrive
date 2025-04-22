@@ -265,9 +265,9 @@ def bayes_opt_iteration(train_df, aq_type="ei", fidelity="multifidelity") -> tup
     # PREPARE TEST DATA
     candidate_scenarios = get_candidate_solutions()
     # Exclude scenarios that have been evaluated (in any fidelity)
-    candidate_scenarios = candidate_scenarios[
-        ~candidate_scenarios.index.isin(train_df.index.get_level_values("def.seed"))
-    ]
+    # candidate_scenarios = candidate_scenarios[
+    #     ~candidate_scenarios.index.isin(train_df.index.get_level_values("def.seed"))
+    # ]
     logger.debug(f"Considering next scenario from {len(candidate_scenarios)} candidates.")
 
     X_test = preprocess_features(candidate_scenarios)
@@ -307,7 +307,7 @@ def do_search(
     search_type="randomsearch",
     fidelity="multifidelity",
     smoketest=False,
-    search_root_dir=HDD_PATH,
+    search_root_dir="/home/olek/Documents/dev/metadrive-multifidelity-data/data/experiments/allow_repeat",
 ):
 
     SEARCH_DIR = Path(search_root_dir) / ("searches_smoketest" if smoketest else "searches")
