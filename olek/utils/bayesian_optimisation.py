@@ -307,7 +307,7 @@ def do_search(
     search_type="randomsearch",
     fidelity="multifidelity",
     smoketest=False,
-    search_root_dir=HDD_PATH,
+    search_root_dir="/home/olek/mnt/mf-paper/shift-fidelity",
 ):
 
     SEARCH_DIR = Path(search_root_dir) / ("searches_smoketest" if smoketest else "searches")
