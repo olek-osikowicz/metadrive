@@ -32,7 +32,7 @@ handler.setFormatter(logging.Formatter(format_str))
 HDD_PATH = Path("/media/olek/2TB_HDD/metadrive-data")
 assert HDD_PATH.exists()
 # current high fidelity is 60 ADS fps.
-FIDELITY_RANGE = [10, 20, 30, 60]
+FIDELITY_RANGE = [1, 5, 10, 20, 30, 60]
 SEARCH_FIDELITIES = [*FIDELITY_RANGE, "multifidelity"]
 
 SEARCH_TYPES = ["randomsearch", "bayesopt_ei", "bayesopt_ucb"]

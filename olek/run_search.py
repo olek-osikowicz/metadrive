@@ -13,7 +13,11 @@ N_PROCESSES = 10
 if __name__ == "__main__":
     multiprocessing.set_start_method("spawn", force=True)
 
-    search_jobs = list(product(range(N_REPETITIONS), SEARCH_TYPES, SEARCH_FIDELITIES))
+    # search_jobs = list(product(range(N_REPETITIONS), SEARCH_TYPES, SEARCH_FIDELITIES))
+    logger.info(f"Shifting Fidelity Experiments!")
+    search_types = ["bayesopt_ucb"]
+    fids = [60, "multifidelity"]
+    search_jobs = list(product(range(N_REPETITIONS), search_types, fids))
     logger.info(f"Search jobs: {search_jobs}")
 
     with multiprocessing.Pool(N_PROCESSES, maxtasksperchild=1) as p:
