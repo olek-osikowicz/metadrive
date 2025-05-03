@@ -336,7 +336,7 @@ def do_search(
     search_type="randomsearch",
     fidelity="multifidelity",
     smoketest=False,
-    search_root_dir="/home/olek/Documents/dev/metadrive-multifidelity-data/data/experiments/allow_repeat",
+    search_root_dir="/home/olek/mnt/mf-paper/allow_repeat",
 ):
 
     SEARCH_DIR = Path(search_root_dir) / ("searches_smoketest" if smoketest else "searches")
