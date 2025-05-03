@@ -196,24 +196,28 @@ def get_next_scenario_seed_from_aq(aq, candidates):
 
 
 def pick_next_fidelity(
-    next_cadidate: pd.DataFrame, scenario_features, trained_model, epsilon=0.01
+    next_cadidate: pd.DataFrame,
+    scenario_features,
+    trained_model,
+    allowed_fidelity_range=FIDELITY_RANGE,
+    epsilon=0.01,
 ) -> int:
     """
     Given chosed scenario decide which fidelity is safe to run.
     Returns fidelity.
     """
     logger.info(f"Picking next fidelity!")
-    mf_candidates = pd.concat([next_cadidate] * len(FIDELITY_RANGE))
-    mf_candidates["fid.ads_fps"] = FIDELITY_RANGE
+    mf_candidates = pd.concat([next_cadidate] * len(allowed_fidelity_range))
+    mf_candidates["fid.ads_fps"] = allowed_fidelity_range
 
     mf_X_test = mf_candidates.reset_index()[scenario_features]
 
     # predict dscore for each fidelity
     predicted_dscore, _ = get_mean_and_std_from_model(trained_model, mf_X_test)
 
-    predictions = dict(zip(FIDELITY_RANGE, predicted_dscore))
+    predictions = dict(zip(allowed_fidelity_range, predicted_dscore))
 
-    hf_prediction = predictions[max(FIDELITY_RANGE)]
+    hf_prediction = predictions[max(allowed_fidelity_range)]
     logger.info(f"Predicted dscore for high fidelity: {hf_prediction:.3f}")
     logger.info(str(predictions))
 
@@ -246,32 +250,49 @@ def bayes_opt_iteration(train_df, aq_type="ei", fidelity="multifidelity") -> tup
     if fidelity == "multifidelity":
         target_fidelity = max(FIDELITY_RANGE)
 
-    # PREPARE TRAINING DATA
-    X_train = preprocess_features(train_df)
-    y_train = train_df["eval.driving_score"]
-
-    if target_fidelity not in train_df.index.get_level_values("fid.ads_fps"):
+    # Check if target fidelity is present in training set
+    if len(train_df) < 2 or target_fidelity not in train_df["fid.ads_fps"].unique():
         logger.warning(f"Target fidelity is not present in training set.")
         logger.warning(f"Will run target fidelity now!")
         return get_random_scenario_seed(get_candidate_solutions()), target_fidelity
 
-    current_best = y_train.xs(target_fidelity).min()
+    # Determine the current best score for the target fidelity
+    hf_train_df = train_df[train_df["fid.ads_fps"] == target_fidelity]
+    current_best = hf_train_df["eval.driving_score"].min()
     logger.info(f"Current best score is: {current_best:.3f}")
 
     # TRAIN THE MODEL
+    X_train = preprocess_features(train_df)
     pipe = regression_pipeline(X_train)
     logger.info(f"Training using {len(X_train.columns)} features")
     # pipe.set_params(regressor__n_jobs=16)
+    y_train = train_df["eval.driving_score"]
     model = pipe.fit(X_train, y_train)
     logger.debug(f"Model trained")
 
     # PREPARE TEST DATA
     candidate_scenarios = get_candidate_solutions()
+
     # Exclude scenarios that have been evaluated (in any fidelity)
-    # candidate_scenarios = candidate_scenarios[
-    #     ~candidate_scenarios.index.isin(train_df.index.get_level_values("def.seed"))
-    # ]
-    logger.debug(f"Considering next scenario from {len(candidate_scenarios)} candidates.")
+    if fidelity == "multifidelity":
+        # Exclude scenarios that have been evaluated (in all fidelity settings)
+        seeds_to_exclude = [
+            seed
+            for seed, df in train_df.groupby("def.seed")
+            if set(df["fid.ads_fps"].unique()) == set(FIDELITY_RANGE)
+        ]
+    else:
+        # Exclude scenarios that have been evaluated
+        seeds_to_exclude = train_df["def.seed"].unique()
+
+    logger.info(
+        f"Excluding {len(seeds_to_exclude)} seeds from candidates {seeds_to_exclude = }"
+    )
+
+    candidate_scenarios = candidate_scenarios[
+        ~candidate_scenarios.index.isin(seeds_to_exclude)
+    ]
+    logger.info(f"Considering next scenario from {len(candidate_scenarios)} candidates.")
 
     X_test = preprocess_features(candidate_scenarios)
     # test candidates must be casted to target fidelity
@@ -299,8 +320,13 @@ def bayes_opt_iteration(train_df, aq_type="ei", fidelity="multifidelity") -> tup
     logger.debug(f"Multifidelity enabled")
 
     next_cadidate = candidate_scenarios.loc[[next_seed]]
-    next_fidelity = pick_next_fidelity(next_cadidate, X_train.columns, model)
-    assert next_fidelity in FIDELITY_RANGE
+    used_fidelities = train_df[train_df["def.seed"] == next_seed]["fid.ads_fps"].unique()
+    available_fidelities = sorted(list(set(FIDELITY_RANGE) - set(used_fidelities)))
+    logger.debug(f"Available fidelities for {next_seed}: {available_fidelities}")
+    next_fidelity = pick_next_fidelity(
+        next_cadidate, X_train.columns, model, allowed_fidelity_range=available_fidelities
+    )
+
     return next_seed, next_fidelity
 
 
