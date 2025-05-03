@@ -87,7 +87,7 @@ def get_training_data(benchmark_data=True, rep_path: Path | None = None) -> pd.D
         logger.info(f"Loading search data from {rep_path}")
         df = get_scenarios_df(rep_path, multiprocessed=False)
         df = process_scenario_df(df)
-        df = df.set_index(["fid.ads_fps", "def.seed"]).sort_index()
+        # df = df.set_index(["fid.ads_fps", "def.seed"], drop=False)
         return df
 
 
@@ -227,6 +227,9 @@ def pick_next_fidelity(
             logger.info(f"Picking fidelity {fid} with dscore error of {error:.3f}")
             return fid
 
+    logger.warning(
+        f"Could not find fidelity with acceptable error, fallbacking to highest avaialble"
+    )
     raise ValueError("No fidelity with acceptable error found")
 
 
