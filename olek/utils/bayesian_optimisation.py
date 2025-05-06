@@ -314,8 +314,8 @@ def do_search(
     repetition,
     search_type="randomsearch",
     fidelity="multifidelity",
-    smoketest=True,
-    search_root_dir="/tmp/mf-paper/epsilon-fidelity",
+    smoketest=False,
+    search_root_dir="/home/olek/Documents/dev/metadrive-multifidelity-data/data/epsilon-fidelity",
     # search_root_dir="/home/olek/mnt/mf-paper/epsilon_fidelity",
 ):
 
