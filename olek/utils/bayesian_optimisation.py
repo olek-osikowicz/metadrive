@@ -314,8 +314,9 @@ def do_search(
     repetition,
     search_type="randomsearch",
     fidelity="multifidelity",
-    smoketest=False,
-    search_root_dir="/home/olek/mnt/mf-paper/epsilon_fidelity",
+    smoketest=True,
+    search_root_dir="/tmp/mf-paper/epsilon-fidelity",
+    # search_root_dir="/home/olek/mnt/mf-paper/epsilon_fidelity",
 ):
 
     SEARCH_DIR = Path(search_root_dir) / ("searches_smoketest" if smoketest else "searches")
