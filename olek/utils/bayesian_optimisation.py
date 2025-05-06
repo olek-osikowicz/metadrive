@@ -335,9 +335,8 @@ def do_search(
     repetition,
     search_type="randomsearch",
     fidelity="multifidelity",
-    smoketest=True,
-    search_root_dir="/tmp/mf-paper/allow-repeat",
-    # search_root_dir="/home/olek/mnt/mf-paper/allow-repeat",
+    smoketest=False,
+    search_root_dir="/home/olek/Documents/dev/metadrive-1/olek/data/allow-repeat",
 ):
 
     SEARCH_DIR = Path(search_root_dir) / ("searches_smoketest" if smoketest else "searches")
