@@ -294,7 +294,15 @@ def bayes_opt_iteration(train_df, aq_type="ei", fidelity="multifidelity") -> tup
         return next_seed, target_fidelity
 
     logger.debug(f"Multifidelity enabled")
+    logger.info(f"Epsilon fidelity variant! Rolling a dice...")
+    dice_roll = random.random()
+    EPSILON = 0.10
+    logger.info(f"Got a random number: {dice_roll:.3f}, and we have {EPSILON=}")
+    if dice_roll < EPSILON:
+        logger.info(f"Forcing to use maximum fidelity")
+        return next_seed, target_fidelity
 
+    logger.info(f"Letting MF algorithm choose fidelity!")
     next_cadidate = candidate_scenarios.loc[[next_seed]]
     next_fidelity = pick_next_fidelity(next_cadidate, X_train.columns, model)
     assert next_fidelity in FIDELITY_RANGE
@@ -306,8 +314,9 @@ def do_search(
     repetition,
     search_type="randomsearch",
     fidelity="multifidelity",
-    smoketest=False,
-    search_root_dir=HDD_PATH,
+    smoketest=True,
+    search_root_dir="/tmp/mf-paper/epsilon-fidelity",
+    # search_root_dir="/home/olek/mnt/mf-paper/epsilon_fidelity",
 ):
 
     SEARCH_DIR = Path(search_root_dir) / ("searches_smoketest" if smoketest else "searches")
