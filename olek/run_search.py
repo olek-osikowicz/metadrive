@@ -16,7 +16,7 @@ if __name__ == "__main__":
     # search_jobs = list(product(range(N_REPETITIONS), SEARCH_TYPES, SEARCH_FIDELITIES))
     logger.info(f"Allow scenario repeat! Experiments")
     search_types = ["bayesopt_ucb"]
-    fids = [60, "multifidelity"]
+    fids = ["multifidelity", 60, 10]
     search_jobs = list(product(range(N_REPETITIONS), search_types, fids))
     logger.info(f"Search jobs: {search_jobs}")
 
