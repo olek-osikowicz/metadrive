@@ -359,7 +359,8 @@ def do_search(
         del runner
 
         logger.info(f"Running this scenario cost: {cost}")
-        current_budget = round(current_budget - cost, 2)
+        current_budget -= cost
+        current_budget = round(current_budget, 2)
 
         logger.info(f"Current budget: {current_budget}")
 
