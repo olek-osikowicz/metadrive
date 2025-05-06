@@ -311,7 +311,8 @@ class ScenarioRunner:
     def get_evaluation_cost(self) -> float:
         """Return a cost of running a scenario"""
         # Currently implemented simply
-        return self.ads_fps / 10
+        cost = self.ads_fps / 10
+        return round(cost, 2)
 
 
 if __name__ == "__main__":
