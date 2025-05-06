@@ -306,8 +306,9 @@ def do_search(
     repetition,
     search_type="randomsearch",
     fidelity="multifidelity",
-    smoketest=False,
-    search_root_dir="/home/olek/mnt/mf-paper/shift-fidelity",
+    smoketest=True,
+    search_root_dir="/tmp/mf-paper/shift-fidelity",
+    # search_root_dir="/home/olek/mnt/mf-paper/shift-fidelity",
 ):
 
     SEARCH_DIR = Path(search_root_dir) / ("searches_smoketest" if smoketest else "searches")
