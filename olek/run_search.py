@@ -16,7 +16,7 @@ if __name__ == "__main__":
     # search_jobs = list(product(range(N_REPETITIONS), SEARCH_TYPES, SEARCH_FIDELITIES))
     logger.info(f"Shifting Fidelity Experiments!")
     search_types = ["bayesopt_ucb"]
-    fids = [1, 5, "multifidelity"]
+    fids = [5, "multifidelity"]
     search_jobs = list(product(range(N_REPETITIONS), search_types, fids))
     logger.info(f"Search jobs: {search_jobs}")
 
