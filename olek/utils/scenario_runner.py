@@ -164,7 +164,7 @@ class ScenarioRunner:
 
         return dict(
             # use_render=True,
-            log_level=logging.WARN,  # logging.INFO # logging.DEBUG
+            log_level=logging.DEBUG,  # logging.INFO # logging.DEBUG
             traffic_density=0.01,
             # traffic_mode="respawn",
             traffic_mode="basic",
@@ -308,10 +308,11 @@ class ScenarioRunner:
             num_stack=1,
         )
 
-    def get_evaluation_cost(self) -> int:
+    def get_evaluation_cost(self) -> float:
         """Return a cost of running a scenario"""
         # Currently implemented simply
-        return self.ads_fps // 10
+        cost = self.ads_fps / 10
+        return round(cost, 2)
 
 
 if __name__ == "__main__":
