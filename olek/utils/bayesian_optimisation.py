@@ -29,7 +29,7 @@ format_str = (
 handler.setFormatter(logging.Formatter(format_str))
 
 
-HDD_PATH = Path("/media/olek/2TB_HDD/metadrive-data")
+HDD_PATH = Path("/home/olek/mf-paper")
 assert HDD_PATH.exists()
 # current high fidelity is 60 ADS fps.
 FIDELITY_RANGE = [10, 20, 30, 60]
@@ -243,19 +243,32 @@ def bayes_opt_iteration(train_df, aq_type="ei", fidelity="multifidelity") -> tup
     if fidelity == "multifidelity":
         target_fidelity = max(FIDELITY_RANGE)
 
-    # PREPARE TRAINING DATA
-    X_train = preprocess_features(train_df)
-    y_train = train_df["eval.driving_score"]
-
-    if target_fidelity not in train_df.index.get_level_values("fid.ads_fps"):
+    logger.info(f"Checking if {target_fidelity = } is present in training set")
+    if target_fidelity not in train_df["fid.ads_fps"].unique():
         logger.warning(f"Target fidelity is not present in training set.")
         logger.warning(f"Will run target fidelity now!")
         return get_random_scenario_seed(get_candidate_solutions()), target_fidelity
 
-    current_best = y_train.xs(target_fidelity).min()
-    logger.info(f"Current best score is: {current_best:.3f}")
+    if fidelity == "multifidelity":
+        logger.info("Check if we need to verify score")
+        hf_train_df = train_df[train_df["fid.ads_fps"] == target_fidelity]
+        current_best = hf_train_df["eval.driving_score"].min()
+        logger.info(f"Current best score is: {current_best:.3f}")
+
+        last_iteration = train_df.iloc[-1]
+        last_dscore = last_iteration["eval.driving_score"]
+        
+        logger.info(f"{current_best = } {last_dscore = }")
+        if last_dscore < current_best:
+            logger.info("Last score is lower than current best, we need to verify!")
+            return last_iteration['def.seed'], target_fidelity
+        else:
+            logger.info("No need to verify search continues")
+
 
     # TRAIN THE MODEL
+    X_train = preprocess_features(train_df)
+    y_train = train_df["eval.driving_score"]
     pipe = regression_pipeline(X_train)
     logger.info(f"Training using {len(X_train.columns)} features")
     # pipe.set_params(regressor__n_jobs=16)
@@ -265,10 +278,16 @@ def bayes_opt_iteration(train_df, aq_type="ei", fidelity="multifidelity") -> tup
     # PREPARE TEST DATA
     candidate_scenarios = get_candidate_solutions()
     # Exclude scenarios that have been evaluated (in any fidelity)
+    seeds_to_exclude = train_df["def.seed"].unique()
+
+    logger.info(
+        f"Excluding {len(seeds_to_exclude)} seeds from candidates {seeds_to_exclude = }"
+    )
+
     candidate_scenarios = candidate_scenarios[
-        ~candidate_scenarios.index.isin(train_df.index.get_level_values("def.seed"))
+        ~candidate_scenarios.index.isin(seeds_to_exclude)
     ]
-    logger.debug(f"Considering next scenario from {len(candidate_scenarios)} candidates.")
+    logger.info(f"Considering next scenario from {len(candidate_scenarios)} candidates.")
 
     X_test = preprocess_features(candidate_scenarios)
     # test candidates must be casted to target fidelity
@@ -293,7 +312,7 @@ def bayes_opt_iteration(train_df, aq_type="ei", fidelity="multifidelity") -> tup
     if fidelity != "multifidelity":
         return next_seed, target_fidelity
 
-    logger.debug(f"Multifidelity enabled")
+    logger.info(f"Multifidelity enabled")
 
     next_cadidate = candidate_scenarios.loc[[next_seed]]
     next_fidelity = pick_next_fidelity(next_cadidate, X_train.columns, model)
@@ -307,7 +326,7 @@ def do_search(
     search_type="randomsearch",
     fidelity="multifidelity",
     smoketest=False,
-    search_root_dir=HDD_PATH,
+    search_root_dir=HDD_PATH / 'verify-potential-solutions',
 ):
 
     SEARCH_DIR = Path(search_root_dir) / ("searches_smoketest" if smoketest else "searches")
