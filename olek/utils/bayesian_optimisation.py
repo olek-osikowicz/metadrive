@@ -5,6 +5,7 @@ from functools import cache, partial
 from itertools import count
 from multiprocessing import Pool
 from pathlib import Path
+import hashlib
 
 import numpy as np
 import pandas as pd
@@ -41,17 +42,17 @@ DEFAULT_SEARCH_BUDGET = 600
 BAYESOPT_INITIALIZATION_RATIO = 0.90  # run random search for 10% of BayesOpt
 
 
-def set_seed(repetition, search_type, fidelity):
+def set_seed(*args):
     """Set a unique random seed for search experiment parameters"""
 
-    random_seed = repetition
-    assert search_type in SEARCH_TYPES
-    random_seed += 10**4 * (SEARCH_TYPES.index(search_type) + 1)
-    random_seed += 10**6 * (SEARCH_FIDELITIES.index(fidelity) + 1)
+    str_args = " ".join([str(arg) for arg in args])
+    print(str_args)
+    hash_digest = hashlib.md5(str_args.encode()).hexdigest()
+    seed = int(hash_digest, 16) % (2**32)
+    logger.info(f"For aguments {args} calculated seed {seed}")
 
-    logger.info(f"Setting a random seed: {random_seed}")
-    random.seed(random_seed)
-    np.random.seed(random_seed)
+    random.seed(seed)
+    np.random.seed(seed)
 
 
 @cache
@@ -177,11 +178,16 @@ def get_random_scenario_seed(candidates):
     return candidates.sample(1).index.values[0]
 
 
-def random_search_iteration(fidelity) -> tuple[int, int]:
+def random_search_iteration(fidelity: str) -> tuple[int, int]:
     """Performs random search iteration."""
     candidates = get_candidate_solutions()
     next_seed = get_random_scenario_seed(candidates)
-    next_fid = fidelity if fidelity != "multifidelity" else random.choice(FIDELITY_RANGE)
+    if "multifidelity" in fidelity:
+        # pick random fidelity
+        next_fid = random.choice(FIDELITY_RANGE)
+    else:
+        next_fid = fidelity
+
     return next_seed, next_fid
 
 
@@ -196,7 +202,7 @@ def get_next_scenario_seed_from_aq(aq, candidates):
 
 
 def pick_next_fidelity(
-    next_cadidate: pd.DataFrame, scenario_features, trained_model, epsilon=0.01
+    next_cadidate: pd.DataFrame, scenario_features, trained_model, error_threshold=0.01
 ) -> int:
     """
     Given chosed scenario decide which fidelity is safe to run.
@@ -223,7 +229,7 @@ def pick_next_fidelity(
         error = abs(dscore - hf_prediction)
         logger.info(f"Considering {fid} FPS with predicted {dscore = :.3f}, {error = :.3f}")
 
-        if error < epsilon:
+        if error < error_threshold:
             logger.info(f"Picking fidelity {fid} with dscore error of {error:.3f}")
             return fid
 
@@ -239,10 +245,16 @@ def bayes_opt_iteration(train_df, aq_type="ei", fidelity="multifidelity") -> tup
 
     logger.info(f"Entering Bayesian Opt Iteration with parameters:")
     logger.info(f"N training samples {len(train_df)}, {aq_type = }, {fidelity = }")
+    if "_" in fidelity:
+        fidelity, epsilon = fidelity.split("_")
+        epsilon = float(epsilon)
+    else:
+        epsilon = 0.0
     target_fidelity = fidelity
     if fidelity == "multifidelity":
         target_fidelity = max(FIDELITY_RANGE)
 
+    logger.info(f"Target fidelity: {target_fidelity} Fidelity alg: {fidelity}, {epsilon =}")
     # PREPARE TRAINING DATA
     X_train = preprocess_features(train_df)
     y_train = train_df["eval.driving_score"]
@@ -296,9 +308,9 @@ def bayes_opt_iteration(train_df, aq_type="ei", fidelity="multifidelity") -> tup
     logger.debug(f"Multifidelity enabled")
     logger.info(f"Epsilon fidelity variant! Rolling a dice...")
     dice_roll = random.random()
-    EPSILON = 0.10
-    logger.info(f"Got a random number: {dice_roll:.3f}, and we have {EPSILON=}")
-    if dice_roll < EPSILON:
+
+    logger.info(f"Got a random number: {dice_roll:.3f}, and we have {epsilon=}")
+    if dice_roll < epsilon:
         logger.info(f"Forcing to use maximum fidelity")
         return next_seed, target_fidelity
 
@@ -314,9 +326,8 @@ def do_search(
     repetition,
     search_type="randomsearch",
     fidelity="multifidelity",
-    smoketest=False,
-    search_root_dir="/home/olek/Documents/dev/metadrive-multifidelity-data/data/epsilon-fidelity",
-    # search_root_dir="/home/olek/mnt/mf-paper/epsilon_fidelity",
+    smoketest=True,
+    search_root_dir="/media/olek/8TB_HDD/metadrive-data/epsilon-fidelity",
 ):
 
     SEARCH_DIR = Path(search_root_dir) / ("searches_smoketest" if smoketest else "searches")

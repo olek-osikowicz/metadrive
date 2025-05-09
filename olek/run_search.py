@@ -1,7 +1,7 @@
 from functools import partial
 from metadrive.engine.logger import get_logger
 from utils.bayesian_optimisation import SEARCH_FIDELITIES, SEARCH_TYPES, do_search
-
+import numpy as np
 from itertools import product
 import multiprocessing
 
@@ -16,10 +16,11 @@ if __name__ == "__main__":
     # search_jobs = list(product(range(N_REPETITIONS), SEARCH_TYPES, SEARCH_FIDELITIES))
     logger.info(f"Epsilon Fidelity Experiments!")
     search_types = ["bayesopt_ucb"]
-    fids = [60, "multifidelity"]
+    fids = [f"multifidelity_{epsilon:.2f}" for epsilon in np.arange(0, 0.51, 0.05)]
+    # Mulifidelity 0.0 should be the same as original MF bayesopt algorithm
+    # Multifidelity 1.0 should be the same as original HF algorithm
     search_jobs = list(product(range(N_REPETITIONS), search_types, fids))
-    logger.info(f"Search jobs: {search_jobs}")
-
+    logger.info(f"Search jobs: {search_jobs} {len(search_jobs) = }")
     with multiprocessing.Pool(N_PROCESSES, maxtasksperchild=1) as p:
         p.starmap(do_search, search_jobs)
 
