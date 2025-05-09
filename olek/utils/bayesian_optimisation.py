@@ -326,7 +326,7 @@ def do_search(
     repetition,
     search_type="randomsearch",
     fidelity="multifidelity",
-    smoketest=True,
+    smoketest=False,
     search_root_dir="/media/olek/8TB_HDD/metadrive-data/epsilon-fidelity",
 ):
 
