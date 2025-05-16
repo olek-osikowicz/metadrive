@@ -178,15 +178,15 @@ def get_random_scenario_seed(candidates):
     return candidates.sample(1).index.values[0]
 
 
-def random_search_iteration(fidelity: str) -> tuple[int, int]:
+def random_search_iteration(fidelity: int | str) -> tuple[int, int]:
     """Performs random search iteration."""
     candidates = get_candidate_solutions()
     next_seed = get_random_scenario_seed(candidates)
-    if "multifidelity" in fidelity:
+    if isinstance(fidelity, int):
         # pick random fidelity
-        next_fid = random.choice(FIDELITY_RANGE)
-    else:
         next_fid = fidelity
+    else:
+        next_fid = random.choice(FIDELITY_RANGE)
 
     return next_seed, next_fid
 

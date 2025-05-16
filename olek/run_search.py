@@ -10,6 +10,11 @@ logger = get_logger()
 N_REPETITIONS = 30
 N_PROCESSES = 10
 
+
+def do_search_wrapper(args):
+    return do_search(*args)
+
+
 if __name__ == "__main__":
     multiprocessing.set_start_method("spawn", force=True)
 
@@ -23,6 +28,7 @@ if __name__ == "__main__":
     search_jobs = list(product(range(N_REPETITIONS), search_types, fids))
     logger.info(f"Search jobs: {search_jobs} {len(search_jobs) = }")
     with multiprocessing.Pool(N_PROCESSES, maxtasksperchild=1) as p:
-        p.starmap(do_search, search_jobs)
-
+        # p.starmap(do_search, search_jobs)
+        for _ in p.imap_unordered(do_search_wrapper, search_jobs, chunksize=1):
+            pass
     logger.info("All experiments finished :))")
