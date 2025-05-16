@@ -7,7 +7,7 @@ import multiprocessing
 
 logger = get_logger()
 
-N_REPETITIONS = 30
+N_REPETITIONS = 50
 N_PROCESSES = 10
 
 
