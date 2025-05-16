@@ -29,7 +29,7 @@ format_str = (
 handler.setFormatter(logging.Formatter(format_str))
 
 
-HDD_PATH = Path("/media/olek/2TB_HDD/metadrive-data")
+HDD_PATH = Path("/home/olek/mf-paper")
 assert HDD_PATH.exists()
 # current high fidelity is 60 ADS fps.
 FIDELITY_RANGE = [10, 20, 30, 60]
@@ -336,7 +336,7 @@ def do_search(
     search_type="randomsearch",
     fidelity="multifidelity",
     smoketest=False,
-    search_root_dir="/media/olek/8TB_HDD/metadrive-data/allow-repeat",
+    search_root_dir=HDD_PATH / "allow-repeat",
 ):
 
     SEARCH_DIR = Path(search_root_dir) / ("searches_smoketest" if smoketest else "searches")
