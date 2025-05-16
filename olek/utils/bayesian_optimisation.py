@@ -250,17 +250,15 @@ def bayes_opt_iteration(
 
     match fidelity:
         case int():
-            epsilon = 0.0
+            target_fidelity = fidelity
+            mf, epsilon = False, None
         case str() if "_" in fidelity:
             fidelity, epsilon = fidelity.split("_")
             epsilon = float(epsilon)
+            target_fidelity = max(FIDELITY_RANGE)
+            mf = True
         case _:
             raise ValueError(f"Invalid fidelity: {fidelity}")
-
-    if fidelity != "multifidelity":
-        target_fidelity = fidelity
-    else:
-        target_fidelity = max(FIDELITY_RANGE)
 
     logger.info(f"Target fidelity: {target_fidelity} Fidelity alg: {fidelity}, {epsilon =}")
     # PREPARE TRAINING DATA
@@ -310,7 +308,7 @@ def bayes_opt_iteration(
     next_seed = int(get_next_scenario_seed_from_aq(aq, candidate_scenarios))
     logger.info(f"Next seed to evaluate: {next_seed}")
 
-    if fidelity != "multifidelity":
+    if not mf:
         return next_seed, target_fidelity
 
     logger.debug(f"Multifidelity enabled")
