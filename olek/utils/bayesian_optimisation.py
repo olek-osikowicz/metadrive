@@ -236,7 +236,9 @@ def pick_next_fidelity(
     raise ValueError("No fidelity with acceptable error found")
 
 
-def bayes_opt_iteration(train_df, aq_type="ei", fidelity="multifidelity") -> tuple[int, int]:
+def bayes_opt_iteration(
+    train_df, aq_type="ei", fidelity="multifidelity_0.00"
+) -> tuple[int, int]:
     """
     Performs a single iteration of Bayesian Otpimisation
     Returns next scenario seed, and next fidelity to run.
@@ -245,13 +247,19 @@ def bayes_opt_iteration(train_df, aq_type="ei", fidelity="multifidelity") -> tup
 
     logger.info(f"Entering Bayesian Opt Iteration with parameters:")
     logger.info(f"N training samples {len(train_df)}, {aq_type = }, {fidelity = }")
-    if "_" in fidelity:
-        fidelity, epsilon = fidelity.split("_")
-        epsilon = float(epsilon)
+
+    match fidelity:
+        case int():
+            epsilon = 0.0
+        case str() if "_" in fidelity:
+            fidelity, epsilon = fidelity.split("_")
+            epsilon = float(epsilon)
+        case _:
+            raise ValueError(f"Invalid fidelity: {fidelity}")
+
+    if fidelity != "multifidelity":
+        target_fidelity = fidelity
     else:
-        epsilon = 0.0
-    target_fidelity = fidelity
-    if fidelity == "multifidelity":
         target_fidelity = max(FIDELITY_RANGE)
 
     logger.info(f"Target fidelity: {target_fidelity} Fidelity alg: {fidelity}, {epsilon =}")
