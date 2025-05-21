@@ -18,16 +18,14 @@ def do_search_wrapper(args):
 if __name__ == "__main__":
     multiprocessing.set_start_method("spawn", force=True)
 
-    # search_jobs = list(product(range(N_REPETITIONS), SEARCH_TYPES, SEARCH_FIDELITIES))
     logger.info(f"Epsilon Fidelity Experiments!")
 
-    fids = FIDELITY_RANGE.copy()
-    fids.extend([f"multifidelity_{epsilon:.2f}" for epsilon in np.arange(0, 0.51, 0.05)])
+    # fids = FIDELITY_RANGE.copy()
+    fids = [60, "multifidelity_0.00"]
 
-    # Mulifidelity 0.0 should be the same as original MF bayesopt algorithmq
     search_jobs = list(product(range(N_REPETITIONS), ["bayesopt_ucb"], fids))
 
-    # search_jobs.extend(product(range(N_REPETITIONS), ["randomsearch"], FIDELITY_RANGE))
+    # search_jobs.extend(product(range(N_REPETITIONS), ["randomsearch"], fids))
 
     logger.info(f"Search jobs: {search_jobs} {len(search_jobs) = }")
     with multiprocessing.Pool(N_PROCESSES, maxtasksperchild=1) as p:

@@ -17,9 +17,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OrdinalEncoder
 
 from utils.scenario_runner import ScenarioRunner
-
-sys.path.append("/home/olek/Documents/dev/metadrive-multifidelity-data/notebooks")
-from utils.parse_metadrive import get_scenarios_df, process_scenario_df  # type: ignore
+from utils.parse_metadrive import get_scenarios_df, process_scenario_df
 
 np.random.seed(0)
 logger = get_logger()
@@ -39,7 +37,7 @@ SEARCH_FIDELITIES = [*FIDELITY_RANGE, "multifidelity"]
 SEARCH_TYPES = ["randomsearch", "bayesopt_ei", "bayesopt_ucb"]
 
 DEFAULT_SEARCH_BUDGET = 600
-BAYESOPT_INITIALIZATION_RATIO = 0.90  # run random search for 10% of BayesOpt
+BAYESOPT_INITIALIZATION_RATIO = 0.95  # run random search for 5% of BayesOpt
 
 
 def set_seed(*args):
@@ -84,11 +82,9 @@ def get_training_data(benchmark_data=True, rep_path: Path | None = None) -> pd.D
         return df
     else:
         # Load search data
-        assert rep_path and rep_path.exists()
         logger.info(f"Loading search data from {rep_path}")
         df = get_scenarios_df(rep_path, multiprocessed=False)
         df = process_scenario_df(df)
-        df = df.set_index(["fid.ads_fps", "def.seed"]).sort_index()
         return df
 
 
@@ -264,14 +260,16 @@ def bayes_opt_iteration(
             raise ValueError(f"Invalid fidelity: {fidelity}")
 
     logger.info(f"Target fidelity: {target_fidelity} Fidelity alg: {fidelity}, {epsilon =}")
-    # PREPARE TRAINING DATA
-    X_train = preprocess_features(train_df)
-    y_train = train_df["eval.driving_score"]
 
-    if target_fidelity not in train_df.index.get_level_values("fid.ads_fps"):
+    if train_df.empty or target_fidelity not in train_df["fid.ads_fps"].values:
         logger.warning(f"Target fidelity is not present in training set.")
         logger.warning(f"Will run target fidelity now!")
         return get_random_scenario_seed(get_candidate_solutions()), target_fidelity
+
+    # PREPARE TRAINING DATA
+    train_df = train_df.set_index(["fid.ads_fps", "def.seed"]).sort_index()
+    X_train = preprocess_features(train_df)
+    y_train = train_df["eval.driving_score"]
 
     current_best = y_train.xs(target_fidelity).min()
     logger.info(f"Current best score is: {current_best:.3f}")
@@ -289,7 +287,7 @@ def bayes_opt_iteration(
     candidate_scenarios = candidate_scenarios[
         ~candidate_scenarios.index.isin(train_df.index.get_level_values("def.seed"))
     ]
-    logger.debug(f"Considering next scenario from {len(candidate_scenarios)} candidates.")
+    logger.info(f"Considering next scenario from {len(candidate_scenarios)} candidates.")
 
     X_test = preprocess_features(candidate_scenarios)
     # test candidates must be casted to target fidelity
@@ -336,7 +334,7 @@ def do_search(
     search_type="randomsearch",
     fidelity="multifidelity",
     smoketest=False,
-    search_root_dir="/media/olek/8TB_HDD/metadrive-data/epsilon-fidelity",
+    search_root_dir="/media/olek/8TB_HDD/metadrive-data/small-initialization",
 ):
 
     SEARCH_DIR = Path(search_root_dir) / ("searches_smoketest" if smoketest else "searches")
