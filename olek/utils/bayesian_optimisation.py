@@ -240,7 +240,7 @@ def bayes_opt_iteration(
     train_df, aq_type="ei", fidelity="multifidelity_0.00"
 ) -> tuple[int, int]:
     """
-    Performs a single iteration of Bayesian Otpimisation
+    Performs a single iteration of Bayesian Optimization
     Returns next scenario seed, and next fidelity to run.
 
     """
@@ -250,9 +250,12 @@ def bayes_opt_iteration(
 
     match fidelity:
         case int():
+            # Single fidelity search
+            assert fidelity in FIDELITY_RANGE
             target_fidelity = fidelity
             mf, epsilon = False, None
         case str() if "_" in fidelity:
+            # Multi-fidelity search
             fidelity, epsilon = fidelity.split("_")
             epsilon = float(epsilon)
             target_fidelity = max(FIDELITY_RANGE)
