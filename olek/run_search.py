@@ -21,13 +21,13 @@ if __name__ == "__main__":
     # search_jobs = list(product(range(N_REPETITIONS), SEARCH_TYPES, SEARCH_FIDELITIES))
     logger.info(f"Epsilon Fidelity Experiments!")
 
+    search_jobs = list(product(range(N_REPETITIONS), ["randomsearch"], [60, "multifidelity_0.00"]))
+
     fids = FIDELITY_RANGE.copy()
     fids.extend([f"multifidelity_{epsilon:.2f}" for epsilon in np.arange(0, 0.51, 0.05)])
-
     # Mulifidelity 0.0 should be the same as original MF bayesopt algorithmq
-    search_jobs = list(product(range(N_REPETITIONS), ["bayesopt_ucb"], fids))
+    search_jobs.extend(product(range(N_REPETITIONS), ["bayesopt_ucb"], fids))
 
-    search_jobs.extend(product(range(N_REPETITIONS), ["randomsearch"], [60, "multifidelity_0.00"]))
 
     logger.info(f"Search jobs: {search_jobs} {len(search_jobs) = }")
     with multiprocessing.Pool(N_PROCESSES, maxtasksperchild=1) as p:
