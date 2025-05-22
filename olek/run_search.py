@@ -27,7 +27,7 @@ if __name__ == "__main__":
     # Mulifidelity 0.0 should be the same as original MF bayesopt algorithmq
     search_jobs = list(product(range(N_REPETITIONS), ["bayesopt_ucb"], fids))
 
-    # search_jobs.extend(product(range(N_REPETITIONS), ["randomsearch"], FIDELITY_RANGE))
+    search_jobs.extend(product(range(N_REPETITIONS), ["randomsearch"], [60, "multifidelity_0.00"]))
 
     logger.info(f"Search jobs: {search_jobs} {len(search_jobs) = }")
     with multiprocessing.Pool(N_PROCESSES, maxtasksperchild=1) as p:
