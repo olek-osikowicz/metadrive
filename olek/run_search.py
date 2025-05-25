@@ -12,7 +12,11 @@ N_PROCESSES = 10
 
 
 def do_search_wrapper(args):
-    return do_search(*args)
+    return do_search(
+        *args,
+        bayesopt_initialization_ratio=0.95,  # use x% of the budget for BayesOpt
+        search_root_dir="/media/olek/8TB_HDD/metadrive-data/initialization/small-initialization",
+    )
 
 
 if __name__ == "__main__":

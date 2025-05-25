@@ -37,7 +37,6 @@ SEARCH_FIDELITIES = [*FIDELITY_RANGE, "multifidelity"]
 SEARCH_TYPES = ["randomsearch", "bayesopt_ei", "bayesopt_ucb"]
 
 DEFAULT_SEARCH_BUDGET = 600
-BAYESOPT_INITIALIZATION_RATIO = 0.95  # run random search for 5% of BayesOpt
 
 
 def set_seed(*args):
@@ -334,6 +333,7 @@ def do_search(
     search_type="randomsearch",
     fidelity="multifidelity",
     smoketest=False,
+    bayesopt_initialization_ratio=0.90,  # run random search for 10% of BayesOpt
     search_root_dir="/media/olek/8TB_HDD/metadrive-data/small-initialization",
 ):
 
@@ -367,7 +367,7 @@ def do_search(
 
             case ["bayesopt", aq_type]:
                 logger.info(f"{aq_type.upper()} Baysian optimisation iteration")
-                if current_budget > BAYESOPT_INITIALIZATION_RATIO * SEARCH_BUDGET:
+                if current_budget > bayesopt_initialization_ratio * SEARCH_BUDGET:
                     logger.info(f"Still initializing BayesOpt, using RS iteration")
                     next_seed, next_fid = random_search_iteration(fidelity)
                 else:
