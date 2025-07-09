@@ -12,10 +12,9 @@ from metadrive.component.map.base_map import BaseMap
 from metadrive.component.map.pg_map import MapGenerateMethod
 from metadrive.engine.logger import get_logger
 from metadrive.envs.metadrive_env import MetaDriveEnv
-from metadrive.examples.ppo_expert.numpy_expert import expert
 
-# from metadrive.examples.ppo_expert.torch_expert import torch_expert as expert
-
+# from metadrive.examples.ppo_expert.numpy_expert import expert
+from metadrive.examples.ppo_expert.torch_expert import torch_expert as expert
 
 WORLD_FPS = 60
 RECORD_VIDEO_FPS = 10
