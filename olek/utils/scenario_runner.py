@@ -229,14 +229,36 @@ class ScenarioRunner:
 
         log.info("Data saved!")
 
+    def init_recording(self):
+        log.info("Recording semantic BEV video...")
+        self.bev_video_writer = self.get_video_writer(
+            self.screen_size, self.file_path.with_stem(self.file_path.stem + "_bev")
+        )
+        if self.env.engine.win:
+            log.info("Recording TPV video...")
+            self.tpv_video_writer = self.get_video_writer(
+                (1200, 900), self.file_path.with_stem(self.file_path.stem + "_tpv")
+            )
+
+    def tick_recording(self):
+        self.bev_video_writer.write(self.get_bev_frame())
+        if self.env.engine.win:
+            self.tpv_video_writer.write(self.get_tpv_frame())
+
+    def save_recording(self):
+        self.bev_video_writer.release()
+        if self.env.engine.win:
+            self.tpv_video_writer.release()
+
     def state_action_loop(self, record: bool = False) -> list:
         """Runs the simulations steps until max_steps limit hit"""
         log.info(f"Launching the scenario with {record = }")
         steps_infos = []
-        if record:
-            video_writer = self.get_video_writer()
         skip_rate = WORLD_FPS // self.ads_fps
         log.info(f"World FPS: {WORLD_FPS}, ADS FPS: {self.ads_fps}, Ratio: {skip_rate}")
+
+        if record:
+            self.init_recording()
 
         for step_no in count():
             log.debug(f"Step {step_no}")
@@ -256,9 +278,7 @@ class ScenarioRunner:
                 log.info("Time out reached!")
 
             if record and step_no % (WORLD_FPS // RECORD_VIDEO_FPS) == 0:
-                frame = self.get_frame()
-                frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-                video_writer.write(frame)
+                self.tick_recording()
 
             if info["crash_vehicle"]:
                 self.crashed_vehicles.update(self.get_crashed_vehicles())
@@ -269,15 +289,14 @@ class ScenarioRunner:
                 break
 
         if record:
-            video_writer.release()
+            self.save_recording()
 
         return steps_infos
 
-    def get_video_writer(self) -> cv2.VideoWriter:
-        output_filename = self.file_path.with_suffix(".mp4")
+    def get_video_writer(self, frame_size: tuple[int, int], path: Path) -> cv2.VideoWriter:
+        output_filename = path.with_suffix(".mp4")
         log.info(f"Saving render to {output_filename}")
         codec = cv2.VideoWriter_fourcc(*"mp4v")
-        frame_size = self.screen_size
         return cv2.VideoWriter(output_filename, codec, RECORD_VIDEO_FPS, frame_size)
 
     @cached_property
@@ -288,22 +307,30 @@ class ScenarioRunner:
         height = int(y_len * RENDER_SCALING * 1.05)
         return width, height
 
-    @cached_property
-    def center_point(self) -> np.ndarray:
-        return self.env.current_map.get_center_point()
+    def get_tpv_frame(self):
+        origin_img = self.env.engine.win.getDisplayRegion(1).getScreenshot()
+        frame = np.frombuffer(origin_img.getRamImage().getData(), dtype=np.uint8)
 
-    def get_frame(self):
-        return self.env.render(
+        frame = frame.reshape((origin_img.getYSize(), origin_img.getXSize(), 4))
+        frame = frame[::-1]
+        frame = frame[..., :3]
+
+        return frame
+
+    def get_bev_frame(self):
+        frame = self.env.render(
             mode="topdown",
             window=False,
             screen_size=self.screen_size,
-            camera_position=self.center_point,
+            camera_position=self.env.current_map.get_center_point(),
             scaling=RENDER_SCALING,
             draw_contour=True,
             draw_target_vehicle_trajectory=True,
             semantic_map=False,
             num_stack=1,
         )
+        frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+        return frame
 
     def get_evaluation_cost(self) -> int:
         """Return a cost of running a scenario"""
