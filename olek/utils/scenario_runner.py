@@ -1,19 +1,21 @@
+import json
+import logging
+import time
 from functools import cached_property
 from itertools import count
-from metadrive.envs.metadrive_env import MetaDriveEnv
+from pathlib import Path
+
+import cv2
+import numpy as np
+
 from metadrive.component.map.base_map import BaseMap
 from metadrive.component.map.pg_map import MapGenerateMethod
 from metadrive.engine.logger import get_logger
+from metadrive.envs.metadrive_env import MetaDriveEnv
 from metadrive.examples.ppo_expert.numpy_expert import expert
 
 # from metadrive.examples.ppo_expert.torch_expert import torch_expert as expert
 
-from pathlib import Path
-import json
-import numpy as np
-import logging
-import time
-import cv2
 
 WORLD_FPS = 60
 RECORD_VIDEO_FPS = 10
@@ -38,19 +40,17 @@ def scenario_file_exists(file_path: Path) -> bool:
         with open(file_path, "r", encoding="utf-8") as file:
             json.load(file)  # Try to parse JSON
         return True  # No error means it's valid JSON
-    except (json.JSONDecodeError, FileNotFoundError, IOError) as e:
+    except (json.JSONDecodeError, FileNotFoundError, IOError):
         return False
 
 
 class ScenarioRunner:
-
     def __init__(
         self,
         save_dir: str | Path,
         seed: int = 0,
         ads_fps: int = 10,
     ) -> None:
-
         start_ts = time.perf_counter()
 
         self.log = get_logger()
@@ -93,7 +93,6 @@ class ScenarioRunner:
         return dist
 
     def get_crashed_vehicles(self) -> set:
-
         ret = set()
         ego = self.env.agent
         npcs = self.env.agent_manager.get_objects()
@@ -104,7 +103,6 @@ class ScenarioRunner:
 
             # if npc crashed
             if npc_state["crash_vehicle"]:
-
                 # calculate distance beetween them
                 distance = np.linalg.norm(ego.position - npc.position)
 
@@ -146,7 +144,6 @@ class ScenarioRunner:
         return max_steps
 
     def get_config(self, dr=1) -> dict:
-
         dt = 1 / WORLD_FPS
         # ===== Termination Scheme =====
         termination_scheme = dict(
@@ -213,7 +210,7 @@ class ScenarioRunner:
             steps_infos = []
 
         self.timings["scenario_time"] = time.perf_counter() - scenario_start
-        self.log.info(f"Running scenario finished.")
+        self.log.info("Running scenario finished.")
 
         # CLOSE THE ENV
         cleanup_start = time.perf_counter()
@@ -229,7 +226,7 @@ class ScenarioRunner:
         with open(self.file_path, "w") as f:
             json.dump(self.scenario_data, f, indent=4, cls=MetaDriveJSONEncoder)
 
-        self.log.info(f"Data saved!")
+        self.log.info("Data saved!")
 
     def state_action_loop(self, record: bool = False) -> list:
         """Runs the simulations steps until max_steps limit hit"""
@@ -243,7 +240,7 @@ class ScenarioRunner:
         for step_no in count():
             self.log.debug(f"Step {step_no}")
             if step_no % skip_rate == 0:
-                self.log.debug(f"Getting agent's action")
+                self.log.debug("Getting agent's action")
                 agent_start = time.perf_counter()
                 action = expert(self.env.agent, deterministic=True)
                 self.timings["agent_time"] += time.perf_counter() - agent_start
@@ -295,7 +292,6 @@ class ScenarioRunner:
         return self.env.current_map.get_center_point()
 
     def get_frame(self):
-
         return self.env.render(
             mode="topdown",
             window=False,
