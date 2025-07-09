@@ -16,6 +16,7 @@ from metadrive.envs.metadrive_env import MetaDriveEnv
 # from metadrive.examples.ppo_expert.numpy_expert import expert
 from metadrive.examples.ppo_expert.torch_expert import torch_expert as expert
 
+log = get_logger()
 WORLD_FPS = 60
 RECORD_VIDEO_FPS = 10
 
@@ -53,11 +54,9 @@ class ScenarioRunner:
     ) -> None:
         start_ts = time.perf_counter()
 
-        self.log = get_logger()
-
         self.save_dir = Path(save_dir)
         self.save_dir.mkdir(parents=True, exist_ok=True)
-        self.log.info(f"Saving data to {self.save_dir}")
+        log.info(f"Saving data to {self.save_dir}")
         self.file_path = self.save_dir / f"{ads_fps}_{seed}.json"
 
         self.seed = int(seed)
@@ -70,7 +69,7 @@ class ScenarioRunner:
         env_config.update(config)
         self.env = MetaDriveEnv(config=env_config)
         _, reset_info = self.env.reset()
-        self.log.setLevel(logging.INFO)
+        log.setLevel(logging.INFO)
 
         assert self.env.config["decision_repeat"] == 1, "Decision repeat must be 1"
 
@@ -139,7 +138,7 @@ class ScenarioRunner:
         max_time = distance / V_min  # [s] maximum time allowed to reach the destination
         max_steps = round(max_time * WORLD_FPS)  # maximum number of simulation steps frames
 
-        self.log.debug(
+        log.debug(
             f"Calculating max steps with: {V_min = :.2f}, {distance = :.2f}, {max_time = :.2f}, {WORLD_FPS = } {max_steps = }"
         )
 
@@ -201,7 +200,7 @@ class ScenarioRunner:
         - dry_run (bool): If True, runs the scenario without executing the main loop. Default is False.
         """
         if scenario_file_exists(self.file_path) and not repeat:
-            self.log.info(f"Data for scenario {self.file_path} exists skipping.")
+            log.info(f"Data for scenario {self.file_path} exists skipping.")
             return
 
         scenario_start = time.perf_counter()
@@ -212,7 +211,7 @@ class ScenarioRunner:
             steps_infos = []
 
         self.timings["scenario_time"] = time.perf_counter() - scenario_start
-        self.log.info("Running scenario finished.")
+        log.info("Running scenario finished.")
 
         # CLOSE THE ENV
         cleanup_start = time.perf_counter()
@@ -228,21 +227,21 @@ class ScenarioRunner:
         with open(self.file_path, "w") as f:
             json.dump(self.scenario_data, f, indent=4, cls=MetaDriveJSONEncoder)
 
-        self.log.info("Data saved!")
+        log.info("Data saved!")
 
     def state_action_loop(self, record: bool = False) -> list:
         """Runs the simulations steps until max_steps limit hit"""
-        self.log.info(f"Launching the scenario with {record = }")
+        log.info(f"Launching the scenario with {record = }")
         steps_infos = []
         if record:
             video_writer = self.get_video_writer()
         skip_rate = WORLD_FPS // self.ads_fps
-        self.log.info(f"World FPS: {WORLD_FPS}, ADS FPS: {self.ads_fps}, Ratio: {skip_rate}")
+        log.info(f"World FPS: {WORLD_FPS}, ADS FPS: {self.ads_fps}, Ratio: {skip_rate}")
 
         for step_no in count():
-            self.log.debug(f"Step {step_no}")
+            log.debug(f"Step {step_no}")
             if step_no % skip_rate == 0:
-                self.log.debug("Getting agent's action")
+                log.debug("Getting agent's action")
                 agent_start = time.perf_counter()
                 action = expert(self.env.agent, deterministic=True)
                 self.timings["agent_time"] += time.perf_counter() - agent_start
@@ -254,7 +253,7 @@ class ScenarioRunner:
             if info["episode_length"] == self.max_steps:
                 truncated = True
                 info["max_step"] = True
-                self.log.info("Time out reached!")
+                log.info("Time out reached!")
 
             if record and step_no % (WORLD_FPS // RECORD_VIDEO_FPS) == 0:
                 frame = self.get_frame()
@@ -276,7 +275,7 @@ class ScenarioRunner:
 
     def get_video_writer(self) -> cv2.VideoWriter:
         output_filename = self.file_path.with_suffix(".mp4")
-        self.log.info(f"Saving render to {output_filename}")
+        log.info(f"Saving render to {output_filename}")
         codec = cv2.VideoWriter_fourcc(*"mp4v")
         frame_size = self.screen_size
         return cv2.VideoWriter(output_filename, codec, RECORD_VIDEO_FPS, frame_size)
