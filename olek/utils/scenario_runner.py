@@ -49,6 +49,7 @@ class ScenarioRunner:
         save_dir: str | Path,
         seed: int = 0,
         ads_fps: int = 10,
+        config: dict = {},
     ) -> None:
         start_ts = time.perf_counter()
 
@@ -64,8 +65,10 @@ class ScenarioRunner:
         self.ads_fps = ads_fps
         self.crashed_vehicles = set()
 
-        # initialize
-        self.env = MetaDriveEnv(config=self.get_config())
+        # initialize driving enviroment
+        env_config = self.get_default_config()
+        env_config.update(config)
+        self.env = MetaDriveEnv(config=env_config)
         _, reset_info = self.env.reset()
         self.log.setLevel(logging.INFO)
 
@@ -142,7 +145,7 @@ class ScenarioRunner:
 
         return max_steps
 
-    def get_config(self, dr=1) -> dict:
+    def get_default_config(self, dr=1) -> dict:
         dt = 1 / WORLD_FPS
         # ===== Termination Scheme =====
         termination_scheme = dict(
