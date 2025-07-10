@@ -209,6 +209,9 @@ class ScenarioRunner:
             steps_infos = self.state_action_loop(record)
         else:
             steps_infos = []
+            if record:
+                frame = self.get_bev_frame()
+                cv2.imwrite(str(self.file_path.with_suffix(".png")), frame)
 
         self.timings["scenario_time"] = time.perf_counter() - scenario_start
         log.info("Running scenario finished.")
