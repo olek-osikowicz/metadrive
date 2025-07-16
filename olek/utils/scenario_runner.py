@@ -298,6 +298,7 @@ class ScenarioRunner:
 
     def get_video_writer(self, frame_size: tuple[int, int], path: Path) -> cv2.VideoWriter:
         output_filename = path.with_suffix(".mp4")
+        output_filename.parent.mkdir(parents=True, exist_ok=True)
         log.info(f"Saving render to {output_filename}")
         codec = cv2.VideoWriter_fourcc(*"mp4v")
         return cv2.VideoWriter(output_filename, codec, RECORD_VIDEO_FPS, frame_size)
