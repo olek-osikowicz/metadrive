@@ -2,9 +2,8 @@ import pickle
 
 from tqdm import tqdm
 
-from metadrive.component.map.pg_map import PGMap, MapGenerateMethod
+from metadrive.component.map.pg_map import MapGenerateMethod, PGMap
 from metadrive.manager.base_manager import BaseManager
-from metadrive.utils.utils import get_time_str
 
 
 class PGMapManager(BaseManager):
@@ -53,6 +52,7 @@ class PGMapManager(BaseManager):
         config = self.engine.global_config.copy()
         current_seed = self.engine.global_seed
 
+        # Generate a new map if it does not exist
         if self.maps[current_seed] is None:
             map_config = config["map_config"]
             map_config.update({"seed": current_seed})
@@ -65,6 +65,7 @@ class PGMapManager(BaseManager):
             map = self.maps[current_seed]
             self.load_map(map)
 
+
     def add_random_to_map(self, map_config):
         if self.engine.global_config["random_lane_width"]:
             map_config[PGMap.LANE_WIDTH
@@ -73,37 +74,6 @@ class PGMapManager(BaseManager):
             map_config[PGMap.LANE_NUM] = self.np_random.randint(PGMap.MIN_LANE_NUM, PGMap.MAX_LANE_NUM + 1)
         return map_config
 
-    def generate_all_maps(self):
-        """
-        Call this function to generate all maps before using them
-        """
-        for seed in tqdm(self.maps.keys(), desc="Generate maps"):
-            config = self.engine.global_config.copy()
-            current_seed = seed
-            self.engine.seed(seed)
-            if self.maps[current_seed] is None:
-                map_config = config["map_config"]
-                map_config.update({"seed": current_seed})
-                map_config = self.add_random_to_map(map_config)
-                map = self.spawn_object(PGMap, map_config=map_config, random_seed=None)
-                self.maps[current_seed] = map
-                map.detach_from_world()
-
-    def dump_all_maps(self, file_name=None):
-        """
-        Dump all maps. If some maps are not generated, we will generate it at first
-        """
-        if file_name is None:
-            start_seed = self.engine.global_config["start_seed"]
-            end_seed = start_seed + self.engine.global_config["num_scenarios"]
-            file_name = "{}_{}_{}.json".format(start_seed, end_seed, get_time_str())
-        self.generate_all_maps()
-        ret = {}
-        for seed, map in tqdm(self.maps.items(), desc="Dump maps"):
-            ret[seed] = map.get_meta_data()
-        with open(file_name, "wb+") as file:
-            pickle.dump(ret, file)
-        return ret
 
     def load_all_maps(self, file_name):
         if self.current_map is not None:
